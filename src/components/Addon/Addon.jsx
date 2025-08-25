@@ -1,7 +1,14 @@
-import React, { useState } from 'react'
+import React, { Fragment, useState } from 'react'
 import { withTranslation } from 'react-i18next'
 import { useQuery, useMutation, gql } from '@apollo/client'
-import { getRestaurantDetail, createAddons, editAddon } from '../../apollo'
+import {
+  getRestaurantDetail,
+  createAddons,
+  editAddon,
+  createOptions,
+  getOptions,
+  getAddonsByRestaurant
+} from '../../apollo'
 import OptionsComponent from '../Option/Option'
 import { validateFunc } from '../../constraints/constraints'
 import {
@@ -22,7 +29,7 @@ import useStyles from './styles'
 import useGlobalStyles from '../../utils/globalStyles'
 
 const GET_OPTIONS = gql`
-  ${getRestaurantDetail}
+  ${getOptions}
 `
 const CREATE_ADDONS = gql`
   ${createAddons}
@@ -31,6 +38,9 @@ const EDIT_ADDON = gql`
   ${editAddon}
 `
 
+const GET_ADDONS = gql`
+  ${getAddonsByRestaurant}
+`
 function Addon(props) {
   const theme = useTheme()
   const { t } = props
@@ -60,7 +70,7 @@ function Addon(props) {
     setTimeout(onDismiss, 3000)
   }
   const onError = error => {
-    mainErrorSetter(` ${t('errorWhileSaving')} ${error}`)
+    mainErrorSetter(`${t('errorWhileSaving')} ${error}`)
     successSetter('')
     setTimeout(onDismiss, 3000)
   }
@@ -95,6 +105,8 @@ function Addon(props) {
   const [success, successSetter] = useState('')
   const [mainError, mainErrorSetter] = useState('')
 
+  console.log({ addon })
+
   const onChange = (event, index, state) => {
     const addons = addon
     addons[index][state] = event.target.value
@@ -108,7 +120,19 @@ function Addon(props) {
       variables: { id: restaurantId }
     }
   )
-  const [mutate, { loading }] = useMutation(mutation, { onError, onCompleted })
+  const [mutate, { loading }] = useMutation(mutation, {
+    onError,
+    onCompleted,
+    refetchQueries: [
+      {
+        query: GET_ADDONS,
+        variables: {
+          id: restaurantId
+        }
+      }
+    ]
+  })
+
   const onBlur = (index, state) => {
     const addons = addon
     if (state === 'title') {
@@ -131,15 +155,17 @@ function Addon(props) {
         { addonQuantityMaximum: addons[index][state] },
         'addonQuantityMaximum'
       )
-      addons[index].quantityMinimumError = addons[index].quantityMaximum <= 1
+      addons[index].quantityMaximumError = addons[index].quantityMaximum < 1
       addons[index].quantityMaximumError =
         addons[index].quantityMaximum < addons[index].quantityMinimum
     }
     if (state === 'options') {
       addons[index].optionsError = addons[index].options.length === 0
+      mainErrorSetter(`Should pick at least one option`)
     }
     addonSetter([...addons])
   }
+
   const onSelectOption = (index, id) => {
     const addons = addon
     const option = addons[index].options.indexOf(id)
@@ -147,11 +173,13 @@ function Addon(props) {
     else addons[index].options.splice(option, 1)
     addonSetter([...addons])
   }
+
   const updateOptions = ids => {
     const addons = addon
     addons[addonIndex].options = addons[addonIndex].options.concat(ids)
     addonSetter([...addons])
   }
+
   const onAdd = index => {
     const addons = addon
     if (index === addons.length - 1) {
@@ -173,6 +201,7 @@ function Addon(props) {
     }
     addonSetter([...addons])
   }
+
   const onRemove = index => {
     if (addon.length === 1 && index === 0) {
       return
@@ -181,10 +210,12 @@ function Addon(props) {
     addons.splice(index, 1)
     addonSetter([...addons])
   }
+
   const toggleModal = index => {
     modalSetter(prev => !prev)
     addonIndexSetter(index)
   }
+
   const validate = () => {
     const addons = addon
     addons.map((addon, index) => {
@@ -226,32 +257,38 @@ function Addon(props) {
       </Box>
 
       <Box className={classes.form}>
-        {addon.map((addonItem, index) => (
+        {addon?.map((addonItem, index) => (
           <Box key={index}>
             <Box>
-              <label>{t('AddRemoveAddon')}</label>
-              <RemoveIcon
-                style={{
-                  backgroundColor: theme.palette.common.black,
-                  color: theme.palette.warning.dark,
-                  borderRadius: '50%',
-                  marginLeft: 12,
-                  marginRight: 10
-                }}
-                onClick={() => {
-                  onRemove(index)
-                }}
-              />
-              <AddIcon
-                style={{
-                  backgroundColor: theme.palette.warning.dark,
-                  color: theme.palette.common.black,
-                  borderRadius: '50%'
-                }}
-                onClick={() => {
-                  onAdd(index)
-                }}
-              />
+              <label>
+                {!props.edit ? t('AddRemoveAddon') : t('edit_addons')}
+              </label>
+              {!props.edit && (
+                <Fragment>
+                  <RemoveIcon
+                    style={{
+                      backgroundColor: theme.palette.common.black,
+                      color: theme.palette.warning.dark,
+                      borderRadius: '50%',
+                      marginLeft: 12,
+                      marginRight: 10
+                    }}
+                    onClick={() => {
+                      onRemove(index)
+                    }}
+                  />
+                  <AddIcon
+                    style={{
+                      backgroundColor: theme.palette.warning.dark,
+                      color: theme.palette.common.black,
+                      borderRadius: '50%'
+                    }}
+                    onClick={() => {
+                      onAdd(index)
+                    }}
+                  />
+                </Fragment>
+              )}
             </Box>
             <Typography className={classes.labelText}>{t('Title')}</Typography>
             <Input
@@ -342,11 +379,11 @@ function Addon(props) {
                 {loadingQuery ? <span>Loading ...</span> : null}
                 {errorQuery ? (
                   <span style={{ marginLeft: 20 }}>
-                    Error! {errorQuery.message}
+                    Error! {errorQuery?.message}
                   </span>
                 ) : null}
                 {data &&
-                  data.restaurant.options.map(option => (
+                  data?.options?.map(option => (
                     <Grid
                       item
                       xs={12}
@@ -375,53 +412,45 @@ function Addon(props) {
           </Box>
         ))}
         <Box>
+          {/* {JSON.stringify(addon[0])} */}
           <Button
             className={globalClasses.button}
             disabled={loading}
             onClick={() => {
               if (validate()) {
-                props.addon
+                props.edit
                   ? mutate({
                       variables: {
+                        id: props.addon._id,
                         addonInput: {
-                          addons: {
-                            _id: props.addon._id,
-                            title: addon[0].title,
-                            description: addon[0].description,
-                            options: addon[0].options,
-                            quantityMinimum: +addon[0].quantityMinimum,
-                            quantityMaximum: +addon[0].quantityMaximum
-                          },
-                          restaurant: restaurantId
+                          title: addon[0].title,
+                          description: addon[0].description,
+                          options: addon[0].options,
+                          quantityMinimum: +addon[0].quantityMinimum,
+                          quantityMaximum: +addon[0].quantityMaximum
                         }
                       }
                     })
                   : mutate({
                       variables: {
-                        addonInput: {
-                          addons: addon.map(
-                            ({
-                              title,
-                              description,
-                              options,
-                              quantityMinimum,
-                              quantityMaximum
-                            }) => ({
-                              title,
-                              description,
-                              options,
-                              quantityMinimum: +quantityMinimum,
-                              quantityMaximum: +quantityMaximum
-                            })
-                          ),
-                          restaurant: restaurantId
-                        }
+                        id: restaurantId,
+                        addonInput: addon.map(
+                          ({
+                            title,
+                            description,
+                            options,
+                            quantityMinimum,
+                            quantityMaximum
+                          }) => ({
+                            title,
+                            description,
+                            options,
+                            quantityMinimum: +quantityMinimum,
+                            quantityMaximum: +quantityMaximum
+                          })
+                        )
                       }
                     })
-                // Close the modal after 3 seconds by calling the parent's onClose callback
-                setTimeout(() => {
-                  props.onClose() // Close the modal
-                }, 4000)
               }
             }}>
             {t('Save')}
@@ -456,7 +485,7 @@ function Addon(props) {
         onClose={() => {
           toggleModal()
         }}>
-        <OptionsComponent updateOptions={updateOptions} />
+        <OptionsComponent onClose={toggleModal} updateOptions={updateOptions} />
       </Modal>
     </Box>
   )

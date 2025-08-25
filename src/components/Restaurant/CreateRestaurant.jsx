@@ -2,10 +2,17 @@ import React, { useState, useRef, useMemo } from 'react'
 import { validateFunc } from '../../constraints/constraints'
 import { withTranslation } from 'react-i18next'
 import { useMutation, gql, useQuery } from '@apollo/client'
-import { createRestaurant, getCuisines, restaurantByOwner } from '../../apollo'
+import {
+  createRestaurant,
+  getBusinessCategories,
+  getCities,
+  getCuisines,
+  getShopCategories,
+  restaurantByOwner
+} from '../../apollo'
 import defaultLogo from '../../assets/img/defaultLogo.png'
-import { IconButton } from '@mui/material';
-import Close from '@mui/icons-material/Close';
+import { IconButton } from '@mui/material'
+import Close from '@mui/icons-material/Close'
 
 import {
   Box,
@@ -32,6 +39,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import { SHOP_TYPE } from '../../utils/enums'
 import Dropdown from '../Dropdown'
+import { useEffect } from 'react'
 
 const CREATE_RESTAURANT = gql`
   ${createRestaurant}
@@ -41,6 +49,27 @@ const RESTAURANT_BY_OWNER = gql`
 `
 const CUISINES = gql`
   ${getCuisines}
+`
+const GET_SHOP_CATEGORIES = gql`
+  ${getShopCategories}
+`
+
+const GET_CITIES = gql`
+  ${getCities}
+`
+const UPLOAD_FILE = gql`
+  mutation uploadFile($id: ID!, $file: Upload!) {
+    uploadFile(id: $id, file: $file) {
+      message
+    }
+  }
+`
+const UPLOAD_LOGO = gql`
+  mutation uploadRestaurantLogo($id: ID!, $file: Upload!) {
+    uploadRestaurantLogo(id: $id, file: $file) {
+      message
+    }
+  }
 `
 const ITEM_HEIGHT = 48
 const ITEM_PADDING_TOP = 8
@@ -54,10 +83,7 @@ const MenuProps = {
 }
 
 const CreateRestaurant = props => {
-  const { CLOUDINARY_UPLOAD_URL, CLOUDINARY_FOOD } = ConfigurableValues()
-
   const { t } = props
-
   const owner = props.owner
   const [showPassword, setShowPassword] = useState(false)
   const [imgUrl, setImgUrl] = useState('')
@@ -70,11 +96,64 @@ const CreateRestaurant = props => {
   const [minimumOrderError, setMinimumOrderError] = useState(null)
   const [salesTaxError, setSalesTaxError] = useState(null)
   const [restaurantCuisines, setRestaurantCuisines] = React.useState([])
+  const [image, setImage] = useState(null)
+  const [logo, setLogo] = useState(null)
+  const [salesPersonName, setSalesPersonName] = useState('')
+  const [responsiblePersonName, setResponsiblePersonName] = useState('')
+  const [contactNumber, setContactNumber] = useState('')
 
+  const [uploadFile] = useMutation(UPLOAD_FILE)
+  const [uploadRestaurantLogo] = useMutation(UPLOAD_LOGO)
   // const [shopType, setShopType] = useState(SHOP_TYPE.RESTAURANT)
   const [errors, setErrors] = useState('')
   const [success, setSuccess] = useState('')
-  const onCompleted = data => {
+  const [category, setCategory] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
+  const [restaurantCategories, setRestaurantCategories] = useState([])
+
+  const {
+    data: dataCategories,
+    loading: loadingCategories,
+    error: errorCategories
+  } = useQuery(GET_SHOP_CATEGORIES)
+
+  const {
+    data: dataCities,
+    error: errorCities,
+    loading: loadingCities
+  } = useQuery(GET_CITIES)
+
+  const { data: businessCategoriesData } = useQuery(getBusinessCategories)
+
+  console.log({ businessCategoriesData })
+
+  const businessCategories =
+    businessCategoriesData?.getBusinessCategories || null
+
+  const cities = dataCities?.citiesAdmin || null
+  console.log({ cities })
+  const shopCategories = dataCategories?.getShopCategories || null
+
+  const onCompleted = async data => {
+    console.log({ data })
+    const restaurantId = data.createRestaurant._id
+    setTimeout(async () => {
+      if (image) {
+        console.log({ image })
+        const restaurantImage = await uploadFile({
+          variables: { id: restaurantId, file: image }
+        })
+        console.log('File uploaded:', restaurantImage.data)
+      }
+      if (logo) {
+        console.log({ logo })
+        const restaurantLogo = await uploadRestaurantLogo({
+          variables: { id: restaurantId, file: logo }
+        })
+        console.log('Logo uploaded:', restaurantLogo.data)
+      }
+    }, 3000)
+
     console.log('on complete here')
     setNameError(null)
     setAddressError(null)
@@ -112,24 +191,37 @@ const CreateRestaurant = props => {
     setSuccess('')
   }
 
+  useEffect(() => {
+    if (shopCategories?.length) {
+      setCategory(shopCategories[0]._id)
+    }
+  }, [shopCategories])
+
   const { data: cuisines } = useQuery(CUISINES)
   const cuisinesInDropdown = useMemo(
     () => cuisines?.cuisines?.map(item => item.name),
     [cuisines]
   )
-  console.log('cuisines => ', cuisinesInDropdown)
+  console.log({ owner })
 
   const [mutate, { loading }] = useMutation(CREATE_RESTAURANT, {
     onError,
-    onCompleted,
-    update
+    onCompleted
+    // update
   })
 
   const formRef = useRef(null)
 
+  const handleImage = e => {
+    setImage(e.target.files[0])
+  }
+  const handleLogo = e => {
+    setLogo(e.target.files[0])
+  }
+
   const handleFileSelect = (event, type) => {
-    let result;
-    result = filterImage(event);
+    let result
+    result = filterImage(event)
     if (result) imageToBase64(result, type)
   }
 
@@ -154,32 +246,9 @@ const CreateRestaurant = props => {
     fileReader.readAsDataURL(imgUrl)
   }
 
-  const uploadImageToCloudinary = async(uploadType) => {
-    if (!uploadType) return;
-
-    const apiUrl = CLOUDINARY_UPLOAD_URL
-    const data = {
-      file: uploadType,
-      upload_preset: CLOUDINARY_FOOD
-    }
-    try {
-      const result = await fetch(apiUrl, {
-        body: JSON.stringify(data),
-        headers: {
-          'content-type': 'application/json'
-        },
-        method: 'POST'
-      })
-      const imageData = await result.json()
-      return imageData.secure_url
-    } catch (e) {
-      console.log(e)
-    }
-  }
-
   const handleCloseModal = () => {
     props.onClose() // Update state to close modal
-  };
+  }
 
   const onSubmitValidaiton = data => {
     const form = formRef.current
@@ -208,11 +277,11 @@ const CreateRestaurant = props => {
     const salesTaxError = !validateFunc({ salesTax }, 'salesTax')
 
     if (deliveryTime < 0 || minimumOrder < 0 || salesTax < 0) {
-      setDeliveryTimeError(true);
-      setMinimumOrderError(true);
-      setSalesTaxError(true);
-      setErrors(t('Negative Values Not Allowed'));
-      return false;
+      setDeliveryTimeError(true)
+      setMinimumOrderError(true)
+      setSalesTaxError(true)
+      setErrors(t('Negative Values Not Allowed'))
+      return false
     }
 
     setNameError(nameError)
@@ -272,18 +341,26 @@ const CreateRestaurant = props => {
     setImgUrl('')
   }
 
+  const handleCategoryChange = e => {
+    setCategory(e.target.value)
+  }
+
+  console.log({ salesTax: formRef?.current?.salesTax?.value })
+
   const handleCuisineChange = event => {
     const {
       target: { value }
     } = event
-    setRestaurantCuisines(
-      typeof value === 'string' ? value.split(',') : value
-    )
+    setRestaurantCuisines(typeof value === 'string' ? value.split(',') : value)
+  }
+
+  const handleBusinessCategoryChange = e => {
+    console.log({ values: e.target.value })
+    setRestaurantCategories(e.target.value)
   }
 
   const classes = useStyles()
   const globalClasses = useGlobalStyles()
-
 
   return (
     <Box container className={classes.container}>
@@ -297,7 +374,9 @@ const CreateRestaurant = props => {
           <label>{t('Available')}</label>
           <Switch defaultChecked style={{ color: 'black' }} />
         </Box>
-        <IconButton onClick={handleCloseModal} style={{ position: 'absolute', right: 5, top: 35 }}>
+        <IconButton
+          onClick={handleCloseModal}
+          style={{ position: 'absolute', right: 5, top: 35 }}>
           <Close />
         </IconButton>
       </Box>
@@ -323,8 +402,8 @@ const CreateRestaurant = props => {
                     usernameError === false
                       ? globalClasses.inputError
                       : usernameError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                   onChange={event => {
                     event.target.value = event.target.value
@@ -352,8 +431,8 @@ const CreateRestaurant = props => {
                     passwordError === false
                       ? globalClasses.inputError
                       : passwordError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                   endAdornment={
                     <InputAdornment position="end">
@@ -387,8 +466,8 @@ const CreateRestaurant = props => {
                     nameError === false
                       ? globalClasses.inputError
                       : nameError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                 />
               </Box>
@@ -411,8 +490,8 @@ const CreateRestaurant = props => {
                     addressError === false
                       ? globalClasses.inputError
                       : addressError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                 />
               </Box>
@@ -434,8 +513,8 @@ const CreateRestaurant = props => {
                     deliveryTimeError === false
                       ? globalClasses.inputError
                       : deliveryTimeError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                 />
               </Box>
@@ -457,8 +536,8 @@ const CreateRestaurant = props => {
                     minimumOrderError === false
                       ? globalClasses.inputError
                       : minimumOrderError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                 />
               </Box>
@@ -480,21 +559,113 @@ const CreateRestaurant = props => {
                     salesTaxError === false
                       ? globalClasses.inputError
                       : salesTaxError === true
-                        ? globalClasses.inputSuccess
-                        : ''
+                      ? globalClasses.inputSuccess
+                      : ''
                   ]}
                 />
               </Box>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Dropdown
-                title={t('Shop Category')}
-                values={Object.values(SHOP_TYPE)}
-                defaultValue={SHOP_TYPE.RESTAURANT}
-                id={'shop-type'}
-                name={'shopType'}
-                displayEmpty={true}
-              />
+              <Box>
+                <Typography className={classes.labelText}>
+                  {t('sales_person')}
+                </Typography>
+                <Input
+                  style={{ marginTop: -1 }}
+                  placeholder={t('sales_person')}
+                  type="text"
+                  disableUnderline
+                  name="salesPersonName"
+                  value={salesPersonName}
+                  onChange={e => setSalesPersonName(e.target.value)}
+                  className={[globalClasses.input]}
+                />
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Box>
+                <Typography className={classes.labelText}>
+                  {t('responsiblePersonName')}
+                </Typography>
+                <Input
+                  style={{ marginTop: -1 }}
+                  name="responsiblePersonName"
+                  value={responsiblePersonName}
+                  onChange={e => setResponsiblePersonName(e.target.value)}
+                  placeholder={t('responsiblePersonName')}
+                  type="text"
+                  disableUnderline
+                  className={[globalClasses.input]}
+                />
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Box>
+                <Typography className={classes.labelText}>
+                  {t('contactNumber')}
+                </Typography>
+                <Input
+                  style={{ marginTop: -1 }}
+                  name="contactNumber"
+                  value={contactNumber}
+                  onChange={e => setContactNumber(e.target.value)}
+                  placeholder={t('contactNumber')}
+                  type="text"
+                  disableUnderline
+                  className={[globalClasses.input]}
+                />
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Typography className={classes.labelText}>
+                {t('Select City')}
+              </Typography>
+              <Select
+                id="input-city"
+                name="input-city"
+                value={selectedCity}
+                onChange={e => setSelectedCity(e.target.value)}
+                displayEmpty
+                inputProps={{ 'aria-label': 'Without label' }}
+                className={[globalClasses.input]}>
+                {cities?.map(city => (
+                  <MenuItem
+                    value={city._id}
+                    key={city._id}
+                    style={{ color: 'black' }}>
+                    {city.title}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              {loadingCategories && <Typography>Loading...</Typography>}
+              {errorCategories && (
+                <Typography>Error fetching categories</Typography>
+              )}
+              {shopCategories?.length && !loadingCategories ? (
+                <Box>
+                  <Typography className={classes.labelText}>
+                    {t('Shop Category')}
+                  </Typography>
+                  <Select
+                    style={{ margin: '0 0 0 0', padding: '0px 0px' }}
+                    defaultValue={shopCategories[0]._id}
+                    className={[globalClasses.input]}
+                    onChange={handleCategoryChange}>
+                    {shopCategories?.map(item => (
+                      <MenuItem
+                        value={item._id}
+                        key={item._id}
+                        style={{ color: 'black' }}>
+                        {item.title.toUpperCase()}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </Box>
+              ) : (
+                <Typography>Add shop categories</Typography>
+              )}
             </Grid>
             <Grid item xs={12} sm={6}>
               <Box>
@@ -524,9 +695,47 @@ const CreateRestaurant = props => {
                 </Select>
               </Box>
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <Box>
+                <Typography className={classes.labelText}>
+                  {t('business_categories')}
+                </Typography>
+                <Select
+                  multiple
+                  value={restaurantCategories}
+                  onChange={handleBusinessCategoryChange}
+                  input={<OutlinedInput />}
+                  renderValue={selected =>
+                    selected.map(item => item.name).join(', ')
+                  }
+                  isOptionEqualToValue={(option, value) =>
+                    option._id === value._id
+                  }
+                  MenuProps={MenuProps}
+                  className={[globalClasses.input]}
+                  style={{ margin: '0 0 0 -20px', padding: '0px 0px' }}>
+                  {businessCategories?.map(item => (
+                    <MenuItem
+                      key={item._id}
+                      value={item}
+                      style={{
+                        color: '#000000',
+                        textTransform: 'capitalize'
+                      }}>
+                      <Checkbox
+                        checked={restaurantCategories.some(
+                          cat => cat._id === item._id
+                        )}
+                      />
+                      <ListItemText primary={item.name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </Box>
+            </Grid>
           </Grid>
 
-          <Grid container spacing={2} >
+          <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Box
                 mt={3}
@@ -550,6 +759,7 @@ const CreateRestaurant = props => {
                   accept="image/*"
                   onChange={event => {
                     handleFileSelect(event, 'image')
+                    handleImage(event)
                   }}
                 />
               </Box>
@@ -563,9 +773,7 @@ const CreateRestaurant = props => {
                 <img
                   className={classes.image}
                   alt="..."
-                  src={
-                    logoUrl || defaultLogo
-                  }
+                  src={logoUrl || defaultLogo}
                 />
                 <label htmlFor="logo-upload" className={classes.fileUpload}>
                   {t('UploadaLogo')}
@@ -577,11 +785,13 @@ const CreateRestaurant = props => {
                   accept="image/*"
                   onChange={event => {
                     handleFileSelect(event, 'logo')
+                    handleLogo(event)
                   }}
                 />
               </Box>
             </Grid>
           </Grid>
+          {console.log({ selectedCity })}
           <Box>
             <Button
               className={globalClasses.button}
@@ -589,8 +799,9 @@ const CreateRestaurant = props => {
               onClick={async e => {
                 e.preventDefault()
                 if (onSubmitValidaiton()) {
-                  const imgUpload = await uploadImageToCloudinary(imgUrl)
-                  const logoUpload = await uploadImageToCloudinary(logoUrl)
+                  // const imgUpload = await uploadImageToCloudinary(imgUrl)
+                  // const logoUpload = await uploadImageToCloudinary(logoUrl)
+                  let img, lgo
                   const form = formRef.current
                   const name = form.name.value
                   const address = form.address.value
@@ -598,8 +809,9 @@ const CreateRestaurant = props => {
                   const minimumOrder = form.minimumOrder.value
                   const username = form.username.value
                   const password = form.password.value
-                  const shopType = form.shopType.value
-
+                  const salesTax = form.salesTax.value
+                  const shopType = category
+                  console.log({ salesTax })
                   mutate({
                     variables: {
                       owner,
@@ -607,16 +819,23 @@ const CreateRestaurant = props => {
                         name,
                         address,
                         image:
-                          imgUpload ||
+                          img ||
                           'https://enatega.com/wp-content/uploads/2023/11/man-suit-having-breakfast-kitchen-side-view.webp',
-                        logo:
-                          logoUpload || defaultLogo,
+                        logo: lgo || defaultLogo,
                         deliveryTime: Number(deliveryTime),
                         minimumOrder: Number(minimumOrder),
                         username,
                         password,
                         shopType,
-                        cuisines: restaurantCuisines
+                        cuisines: restaurantCuisines,
+                        salesTax: parseInt(form.salesTax.value),
+                        city: selectedCity,
+                        businessCategories: restaurantCategories.map(
+                          item => item._id
+                        ),
+                        salesPersonName,
+                        responsiblePersonName,
+                        contactNumber
                       }
                     }
                   })

@@ -1,85 +1,48 @@
+import { gql } from '@apollo/client'
+
 export const createFood = `
   mutation CreateFood($foodInput:FoodInput!){
-      createFood(
-          foodInput:$foodInput
-      ){
-        _id
-      categories{
+    createFood(
+      foodInput:$foodInput
+    ){
+      _id
+      title
+      description
+      image
+      category {
         _id
         title
-        foods{
-          _id
-          title
-          description
-          variations{
-            _id
-            title
-            price
-            discounted
-            addons
-          }
-          image
-          isActive
-        }
-        createdAt
-        updatedAt
       }
-      }
-    }`
+      isActive
+      createdAt
+      updatedAt
+    }
+}`
 
 export const editFood = `
     mutation EditFood($foodInput:FoodInput!){
         editFood(
             foodInput:$foodInput
         ){
+          _id
+          title
+          description
+          image
+          category {
             _id
-            categories{
-              _id
-              title
-              foods{
-                _id
-                title
-                description
-                variations{
-                  _id
-                  title
-                  price
-                  discounted
-                  addons
-                }
-                image
-                isActive
-              }
-              createdAt
-              updatedAt
-            }
+            title
+          }
+          isActive
+          createdAt
+          updatedAt
         }
       }`
 
 export const deleteFood = `
-      mutation DeleteFood($id:String!,$restaurant:String!,$categoryId:String!){
-        deleteFood(id:$id,restaurant:$restaurant,categoryId:$categoryId){
-          _id
-          categories{
-            _id
-            title
-            foods{
-              _id
-              title
-              description
-              variations{
-                _id
-                title
-                price
-                discounted
-                addons
-              }
-              image
-              isActive
-            }
-            createdAt
-            updatedAt
-          }
+      mutation DeleteFood($id:String!){
+        deleteFood(id:$id){
+          message
+          
         }
       }`
 
@@ -87,86 +50,26 @@ export const createCategory = `
 mutation CreateCategory($category:CategoryInput){
   createCategory(category:$category){
     _id
-    categories{
-      _id
-      title
-      foods{
-        _id
-        title
-        description
-        variations{
-          _id
-          title
-          price
-          discounted
-          addons
-        }
-        image
-        isActive
-        createdAt
-        updatedAt
-      }
-      createdAt
-      updatedAt
-    }
+    title
+    createdAt
+    updatedAt
   }
 }`
 
 export const editCategory = `
       mutation EditCategory($category:CategoryInput){
         editCategory(category:$category){
-          _id
-          categories{
             _id
             title
-            foods{
-              _id
-              title
-              description
-              variations{
-                _id
-                title
-                price
-                discounted
-                addons
-              }
-              image
-              isActive
-              createdAt
-              updatedAt
-            }
             createdAt
             updatedAt
-          }
         }
       }`
 
 export const deleteCategory = `
-      mutation DeleteCategory($id:String!,$restaurant:String!){
-        deleteCategory(id:$id,restaurant:$restaurant){
-                _id
-                categories{
-                  _id
-                  title
-                  foods{
-                    _id
-                    title
-                    description
-                    variations{
-                      _id
-                      title
-                      price
-                      discounted
-                      addons
-                    }
-                    image
-                    isActive
-                    createdAt
-                    updatedAt
-                  }
-                  createdAt
-                  updatedAt
-                }
+      mutation DeleteCategory($id:String!){
+        deleteCategory(id:$id){
+          message
         }
       }`
 
@@ -297,7 +200,7 @@ export const saveDeliveryRateConfiguration = `mutation SaveDeliveryRateConfigura
     costType
     minimumDeliveryFee
   }
-}`;
+}`
 
 export const savePaypalConfiguration = `mutation SavePaypalConfiguration($configurationInput:PaypalConfigurationInput!){
   savePaypalConfiguration(configurationInput:$configurationInput){
@@ -411,8 +314,8 @@ export const uploadToken = `mutation UploadToken($id:String!,$pushToken:String!)
   }
 }`
 
-export const resetPassword = `mutation ResetPassword($password:String!,$token:String!){
-  resetPassword(password:$password,token:$token){
+export const resetPassword = `mutation ResetPassword($email: String!, $password:String!){
+  resetPassword(email: $email, password:$password){
     result
   }
 }`
@@ -449,18 +352,26 @@ export const editRider = `
         }
       }`
 export const deleteRider = `
-      mutation DeleteRider($id:String!){
-        deleteRider(id:$id){
-          _id
-        }
-      }`
+  mutation DeleteRider($id:String!){
+    deleteRider(id:$id){
+      message
+    }
+  }`
 
 export const toggleAvailablity = `
-      mutation ToggleRider($id:String){
-        toggleAvailablity(id:$id){
-          _id
-        }
-}`
+  mutation ToggleRider($id:String){
+    toggleAvailablity(id:$id){
+      _id
+    }
+  }
+`
+export const toggleActive = `
+  mutation ToggleActive($id:String){
+    toggleActive(id:$id){
+      _id
+    }
+  }
+`
 
 export const assignRider = ` mutation AssignRider($id:String!,$riderId:String!){
   assignRider(id:$id,riderId:$riderId){
@@ -512,104 +423,68 @@ export const deleteOffer = `mutation DeleteOffer($id:String!){
   deleteOffer(id:$id)
 }`
 
-export const createOptions = `mutation CreateOptions($optionInput:CreateOptionInput){
-  createOptions(optionInput:$optionInput){
+export const createOptions = `mutation CreateOptions($id: String!, $optionInput:CreateOptionInput){
+  createOptions(id: $id, optionInput:$optionInput){
     _id
-    options{
-      _id
-      title
-      description
-      price
-    }
+    title
+    description
+    price
   }
 }`
 
-export const createAddons = `mutation CreateAddons($addonInput:AddonInput){
-  createAddons(addonInput:$addonInput){
-      _id
-      addons{
-        _id
-        options
-        title
-        description
-        quantityMinimum
-        quantityMaximum
-      }
-      
-    }
+export const createAddons = `mutation CreateAddons($id: String!, $addonInput:[AddonInput!]!){
+  createAddons(id: $id, addonInput:$addonInput){
+    options
+    title
+    description
+    quantityMinimum
+    quantityMaximum      
+  }
 }`
-export const editAddon = `mutation editAddon($addonInput:editAddonInput){
-  editAddon(addonInput:$addonInput){
-      _id
-      addons{
-        _id
-        options
-        title
-        description
-        quantityMinimum
-        quantityMaximum
-      }
+export const editAddon = `mutation editAddon($id: String!, $addonInput:AddonInput!){
+  editAddon(id: $id,addonInput:$addonInput){
+    options
+    title
+    description
+    quantityMinimum
+    quantityMaximum     
   }
 }`
 
 export const deleteAddon = `
-      mutation DeleteAddon($id:String!,$restaurant:String!){
-        deleteAddon(id:$id,restaurant:$restaurant){
-          _id
-          addons{
-            _id
-            options
-            title
-            description
-            quantityMinimum
-            quantityMaximum
-          }
+      mutation DeleteAddon($id:String!){
+        deleteAddon(id:$id){
+          message
         }
       }`
 
 export const deleteOption = `
-      mutation DeleteOption($id:String!,$restaurant:String!){
-        deleteOption(id:$id,restaurant:$restaurant){
-          _id
-          options{
-            _id
-            title
-            description
-            price
-          }
+      mutation DeleteOption($id:String!){
+        deleteOption(id:$id){
+          message
         }
       }`
 export const editOption = `mutation editOption($optionInput:editOptionInput){
   editOption(optionInput:$optionInput){
-          _id
-          options{
-            _id
-            title
-            description
-            price
-          }
+          message
         }
       }`
 
 export const createCoupon = `mutation CreateCoupon($couponInput:CouponInput!){
   createCoupon(couponInput:$couponInput){
-    _id
-    title
-    discount
-    enabled
+    message
   }
 }`
-export const editCoupon = `mutation editCoupon($couponInput:CouponInput!){
-  editCoupon(couponInput:$couponInput){
-        _id
-        title
-        discount
-        enabled
-        }
-      }`
+export const editCoupon = `mutation editCoupon($id: String!,$couponInput:CouponInput!){
+  editCoupon(id: $id, couponInput:$couponInput){
+      message
+    }
+  }`
 export const deleteCoupon = `mutation DeleteCoupon($id:String!){
-        deleteCoupon(id:$id)
-      }`
+  deleteCoupon(id:$id) {
+    message
+  }
+}`
 
 export const createCuisine = `mutation CreateCuisine($cuisineInput:CuisineInput!){
         createCuisine(cuisineInput:$cuisineInput){
@@ -744,6 +619,11 @@ export const createZone = `mutation CreateZone($zone:ZoneInput!){
     isActive
   }
 }`
+export const createDeliveryZone = `mutation CreateDeliveryZone($deliveryZoneInput:DeliveryZoneInput){
+  createDeliveryZone(deliveryZoneInput:$deliveryZoneInput){
+    message
+  }
+}`
 
 export const editZone = `mutation EditZone($zone:ZoneInput!){
   editZone(zone:$zone){
@@ -757,11 +637,37 @@ export const editZone = `mutation EditZone($zone:ZoneInput!){
 
 export const deleteZone = `mutation DeleteZone($id:String!){
   deleteZone(id:$id){
-    _id
-    title
-    description
-    location{coordinates}
-    isActive
+    message
+  }
+}`
+
+export const createCity = `mutation CreateCity($title:String!, $coordinates: [Float]){
+  createCity(title:$title, coordinates: $coordinates){
+    message
+  }
+}`
+
+export const editCity = `mutation EditCity($id: String!, $title: String!, $coordinates: [Float], $locationId: String){
+  editCity(id: $id, title: $title, coordinates: $coordinates, locationId: $locationId){
+    message
+  }
+}`
+
+export const createArea = `mutation CreateArea($areaInput:AreaInput!){
+  createArea(areaInput:$areaInput){
+    message
+  }
+}`
+
+export const editArea = `mutation EditArea($id: String!, $locationId: String!, $areaInput:AreaInput!){
+  editArea(id: $id, locationId: $locationId, areaInput:$areaInput){
+    message
+  }
+}`
+
+export const removeArea = `mutation RemoveArea($id: String!){
+  removeArea(id: $id){
+    message
   }
 }`
 
@@ -776,9 +682,8 @@ export const deleteRestaurant = `mutation DeltetRestaurant($id:String!){
   }
 }`
 
-export const updateTimings = `mutation UpdateTimings($id:String!,$openingTimes:[TimingsInput]){
-  updateTimings(id:$id,
-    openingTimes:$openingTimes){
+export const updateTimings = `mutation UpdateTimings($id:String!, $openingTimes:[TimingsInput]){
+  updateTimings(id:$id, openingTimes:$openingTimes){
     _id
     openingTimes{
       day
@@ -800,8 +705,8 @@ export const updateCommission = `mutation UpdateCommission($id:String!,$commissi
     commissionRate
   }
 }`
-export const createRestaurant = `mutation CreateRestaurant($restaurant:RestaurantInput!,$owner:ID!){
-  createRestaurant(restaurant:$restaurant,owner:$owner){
+export const createRestaurant = `mutation CreateRestaurant($restaurant: RestaurantInput!, $owner: String!){
+  createRestaurant(restaurant: $restaurant,owner: $owner){
     _id
     orderId
     orderPrefix
@@ -892,7 +797,7 @@ export const findOrCreateUser = `
     }
   }`
 
-  export const CheckOutPlaceOrder = `
+export const CheckOutPlaceOrder = `
 mutation CheckOutPlaceOrder($userId: ID!, $resId : String! ,  $addressId: ID!, $orderAmount: Float!) {
   CheckOutPlaceOrder(userId: $userId, resId :$resId , addressId: $addressId, orderAmount: $orderAmount) {
     _id
@@ -917,3 +822,225 @@ mutation CheckOutPlaceOrder($userId: ID!, $resId : String! ,  $addressId: ID!, $
     updatedAt
   }
 }`
+
+export const UPDATE_USER_ADDRESS = gql`
+  mutation UpdateUserAddress($userInput: UpdateAddressUserInput!) {
+    updateUserAddress(userInput: $userInput) {
+      _id
+      name
+      phone
+      addresses {
+        _id
+        deliveryAddress
+        details
+        label
+        selected
+      }
+    }
+  }
+`
+
+export const REMOVE_CITY = gql`
+  mutation RemoveCity($id: String!) {
+    removeCity(id: $id) {
+      message
+    }
+  }
+`
+export const createBusiness = gql`
+  mutation CreateBusiness($businessInput: BusinessInput) {
+    createBusiness(businessInput: $businessInput) {
+      message
+    }
+  }
+`
+
+export const createShopCategory = gql`
+  mutation CreateShopCategory($shopCategoryInput: ShopCategoryInput!) {
+    createShopCategory(shopCategoryInput: $shopCategoryInput) {
+      message
+    }
+  }
+`
+export const editShopCategory = gql`
+  mutation EditShopCategory(
+    $id: String!
+    $shopCategoryInput: ShopCategoryInput!
+  ) {
+    editShopCategory(id: $id, shopCategoryInput: $shopCategoryInput) {
+      message
+    }
+  }
+`
+export const removeShopCategory = gql`
+  mutation RemoveShopCategory($id: String!) {
+    removeShopCategory(id: $id) {
+      message
+    }
+  }
+`
+
+export const acceptOrder = gql`
+  mutation AcceptOrderAdmin(
+    $_id: String!
+    $restaurantId: String!
+    $time: String
+  ) {
+    acceptOrderAdmin(_id: $_id, restaurantId: $restaurantId, time: $time) {
+      _id
+      orderStatus
+      preparationTime
+    }
+  }
+`
+
+export const removeRiderRegistered = gql`
+  mutation RemoveRiderRegistered($id: String!) {
+    removeRiderRegistered(id: $id) {
+      message
+    }
+  }
+`
+export const toggleCityActive = gql`
+  mutation ToggleCityActive($id: String!) {
+    toggleCityActive(id: $id) {
+      message
+    }
+  }
+`
+export const newCheckoutPlaceOrder = gql`
+  mutation NewCheckoutPlaceOrder($input: NewCheckoutOrderInput) {
+    newCheckoutPlaceOrder(input: $input) {
+      _id
+      orderId
+      user {
+        _id
+        name
+        phone
+      }
+      deliveryAddress {
+        id
+        deliveryAddress
+        details
+        label
+      }
+      orderAmount
+      paymentStatus
+      orderStatus
+      isActive
+      createdAt
+      updatedAt
+    }
+  }
+`
+export const createDeliveryPrice = gql`
+  mutation CreateDeliveryPrice($deliveryPriceInput: DeliveryPriceInput) {
+    createDeliveryPrice(deliveryPriceInput: $deliveryPriceInput) {
+      message
+    }
+  }
+`
+export const updateDeliveryPrice = gql`
+  mutation UpdateDeliveryPrice($id: String!, $cost: Float!) {
+    updateDeliveryPrice(id: $id, cost: $cost) {
+      message
+    }
+  }
+`
+export const removeDeliveryPrice = gql`
+  mutation RemoveDeliveryPrice($id: String!) {
+    removeDeliveryPrice(id: $id) {
+      message
+    }
+  }
+`
+export const createBusinessCategory = gql`
+  mutation CreateBusinessCategory($input: BusinessCategoryInput!) {
+    createBusinessCategory(input: $input) {
+      message
+    }
+  }
+`
+export const editBusinessCategory = gql`
+  mutation EditBusinessCategory($input: BusinessCategoryInput!, $id: String!) {
+    editBusinessCategory(input: $input, id: $id) {
+      message
+    }
+  }
+`
+export const removeBusinessCategory = gql`
+  mutation RemoveBusinessCategory($id: String!) {
+    removeBusinessCategory(id: $id) {
+      message
+    }
+  }
+`
+export const changeActiveBusinessCategory = gql`
+  mutation ChangeActiveBusinessCategory($id: String!) {
+    changeActiveBusinessCategory(id: $id) {
+      message
+    }
+  }
+`
+export const defaultTimings = gql`
+  mutation DefaultTimings($id: String!) {
+    defaultTimings(id: $id) {
+      message
+    }
+  }
+`
+
+export const createDeliveryRequestAdmin = gql`
+  mutation CreateDeliveryRequestAdmin($input: CreateDeliveryRequestInput!) {
+    createDeliveryRequestAdmin(input: $input) {
+      message
+    }
+  }
+`
+
+export const createFoodByFile = gql`
+  mutation CreateBusinessMenu($file: Upload, $restaurantId: String!) {
+    createBusinessMenu(file: $file, restaurantId: $restaurantId) {
+      message
+    }
+  }
+`
+export const makeRestaurantVisible = gql`
+  mutation MakeRestaurantVisible($id: String!) {
+    makeRestaurantVisible(id: $id) {
+      message
+    }
+  }
+`
+
+export const createPrepaidDeliveryPackage = gql`
+  mutation CreatePrepaidDeliveryPackage($input: PrepaidDeliveryPackageInput!) {
+    createPrepaidDeliveryPackage(input: $input) {
+      message
+    }
+  }
+`
+export const updatePrepaidDeliveryPackage = gql`
+  mutation UpdatePrepaidDeliveryPackage(
+    $id: String!
+    $input: PrepaidDeliveryPackageInput!
+  ) {
+    updatePrepaidDeliveryPackage(id: $id, input: $input) {
+      message
+    }
+  }
+`
+export const removePrepaidDeliveryPackage = gql`
+  mutation RemovePrepaidDeliveryPackage($id: String!) {
+    removePrepaidDeliveryPackage(id: $id) {
+      message
+    }
+  }
+`
+export const updateActivePrepaidDeliveryPackage = gql`
+  mutation UpdateActivePrepaidDeliveryPackage($id: String!) {
+    updateActivePrepaidDeliveryPackage(id: $id) {
+      message
+    }
+  }
+`

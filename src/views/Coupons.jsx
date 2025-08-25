@@ -70,9 +70,9 @@ const Coupon = props => {
 
   const columns = [
     {
-      name: t('Title'),
+      name: t('Code'),
       sortable: true,
-      selector: 'title'
+      selector: 'code'
     },
     {
       name: t('Discount'),
@@ -85,7 +85,7 @@ const Coupon = props => {
     },
     {
       name: t('Action'),
-      cell: row => <>{actionButtons(row)}</>
+      cell: row => <>{ActionButtons(row, toggleModal, t, mutateDelete)}</>
     }
   ]
   const regex =
@@ -95,7 +95,7 @@ const Coupon = props => {
       ? data && data.coupons
       : data &&
         data.coupons.filter(coupon => {
-          return coupon.title.toLowerCase().search(regex) > -1
+          return coupon.code.toLowerCase().search(regex) > -1
         })
 
   const statusChanged = row => {
@@ -122,63 +122,12 @@ const Coupon = props => {
       </>
     )
   }
-  const actionButtons = row => {
-    const [anchorEl, setAnchorEl] = React.useState(null)
-    const open = Boolean(anchorEl)
-    const handleClick = event => {
-      setAnchorEl(event.currentTarget)
-    }
-    const handleClose = () => {
-      setAnchorEl(null)
-    }
-    return (
-      <>
-        <div>
-          <IconButton
-            aria-label="more"
-            id="long-button"
-            aria-haspopup="true"
-            onClick={handleClick}>
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-          <Paper>
-            <Menu
-              id="long-menu"
-              MenuListProps={{
-                'aria-labelledby': 'long-button'
-              }}
-              anchorEl={anchorEl}
-              open={open}
-              onClose={handleClose}>
-              <MenuItem
-                onClick={e => {
-                  e.preventDefault()
-                  toggleModal(row)
-                }}
-                style={{ height: 25 }}>
-                <ListItemIcon>
-                  <EditIcon fontSize="small" style={{ color: 'green' }} />
-                </ListItemIcon>
-                <Typography color="green">{t('Edit')}</Typography>
-              </MenuItem>
-              <MenuItem
-                onClick={e => {
-                  e.preventDefault()
-                  mutateDelete({ variables: { id: row._id } })
-                }}
-                style={{ height: 25 }}>
-                <ListItemIcon>
-                  <DeleteIcon fontSize="small" style={{ color: 'red' }} />
-                </ListItemIcon>
-                <Typography color="red">{t('Delete')}</Typography>
-              </MenuItem>
-            </Menu>
-          </Paper>
-        </div>
-      </>
-    )
-  }
+
   const globalClasses = useGlobalStyles()
+
+  const handleClose = () => {
+    setEditModal(false)
+  }
   return (
     <>
       <Header />
@@ -188,9 +137,9 @@ const Coupon = props => {
           <Grid item>
             <CouponComponent />
           </Grid>
-          <Grid sx={{ display: { xs: 'none', lg: 'block' } }} item mt={2}>
+          {/* <Grid sx={{ display: { xs: 'none', lg: 'block' } }} item mt={2}>
             <CouponsIcon />
-          </Grid>
+          </Grid> */}
         </Grid>
 
         {errorQuery ? (
@@ -231,9 +180,66 @@ const Coupon = props => {
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-          <CouponComponent coupon={coupon} />
+          <CouponComponent coupon={coupon} onClose={handleClose} />
         </Modal>
       </Container>
+    </>
+  )
+}
+
+const ActionButtons = (row, toggleModal, t, mutateDelete) => {
+  const [anchorEl, setAnchorEl] = useState(null)
+  const open = Boolean(anchorEl)
+  const handleClick = event => {
+    setAnchorEl(event.currentTarget)
+  }
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+  return (
+    <>
+      <div>
+        <IconButton
+          aria-label="more"
+          id="long-button"
+          aria-haspopup="true"
+          onClick={handleClick}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+        <Paper>
+          <Menu
+            id="long-menu"
+            MenuListProps={{
+              'aria-labelledby': 'long-button'
+            }}
+            anchorEl={anchorEl}
+            open={open}
+            onClose={handleClose}>
+            <MenuItem
+              onClick={e => {
+                e.preventDefault()
+                toggleModal(row)
+              }}
+              style={{ height: 25 }}>
+              <ListItemIcon>
+                <EditIcon fontSize="small" style={{ color: 'green' }} />
+              </ListItemIcon>
+              <Typography color="green">{t('Edit')}</Typography>
+            </MenuItem>
+            <MenuItem
+              onClick={e => {
+                e.preventDefault()
+                mutateDelete({ variables: { id: row._id } })
+              }}
+              style={{ height: 25 }}>
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" style={{ color: 'red' }} />
+              </ListItemIcon>
+              <Typography color="red">{t('Delete')}</Typography>
+            </MenuItem>
+          </Menu>
+        </Paper>
+      </div>
     </>
   )
 }

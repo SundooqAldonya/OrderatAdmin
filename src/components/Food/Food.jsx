@@ -3,7 +3,15 @@ import { useQuery, useMutation, gql } from '@apollo/client'
 import { validateFunc } from '../../constraints/constraints'
 import { withTranslation } from 'react-i18next'
 import ConfigurableValues from '../../config/constants'
-import { getRestaurantDetail, createFood, editFood } from '../../apollo'
+import {
+  getRestaurantDetail,
+  createFood,
+  editFood,
+  categoriesByRestaurants,
+  getFoodListByRestaurant,
+  getAddonsByRestaurant,
+  getStockUnits
+} from '../../apollo'
 import AddonComponent from '../Addon/Addon'
 import useStyles from './styles'
 import useGlobalStyles from '../../utils/globalStyles'
@@ -23,6 +31,12 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
+import foodPlaceholder from '../../assets/food_placeholder.jpeg'
+
+const GET_FOODS = gql`
+  ${getFoodListByRestaurant}
+`
+
 const CREATE_FOOD = gql`
   ${createFood}
 `
@@ -30,16 +44,15 @@ const EDIT_FOOD = gql`
   ${editFood}
 `
 const GET_CATEGORIES = gql`
-  ${getRestaurantDetail}
+  ${categoriesByRestaurants}
 `
 const GET_ADDONS = gql`
-  ${getRestaurantDetail}
+  ${getAddonsByRestaurant}
 `
 
 function Food(props) {
   const theme = useTheme()
-
-  const { CLOUDINARY_UPLOAD_URL, CLOUDINARY_FOOD } = ConfigurableValues()
+  // const { CLOUDINARY_UPLOAD_URL, CLOUDINARY_FOOD } = ConfigurableValues()
   const formRef = useRef()
   const mutation = props.food ? EDIT_FOOD : CREATE_FOOD
   const [title, setTitle] = useState(props.food ? props.food.title : '')
@@ -47,8 +60,18 @@ function Food(props) {
     props.food ? props.food.description : ''
   )
   const [category, setCategory] = useState(
-    props.food ? props.food.categoryId : ''
+    props.food ? props.food.category._id : ''
   )
+  const [editModal, setEditModal] = useState(false)
+  const [image, setImage] = useState({})
+  const [selectedStockUnit, setSelectedStockUnit] = useState(
+    props?.food?.stock ? props.food.stock : ''
+  )
+  const [selectedStockVariation, setSelectedStockVariation] = useState(
+    props?.food?.stock ? props.food.stock : ''
+  )
+  // const [stockAmount, setStockAmount] = useState('')
+
   const [imgMenu, imgMenuSetter] = useState(props.food ? props.food.image : '')
   const [variationIndex, variationIndexSetter] = useState(0)
   const [mainError, mainErrorSetter] = useState('')
@@ -56,18 +79,22 @@ function Food(props) {
   const [titleError, titleErrorSetter] = useState(null)
   const [categoryError, categoryErrorSetter] = useState(null)
   const [addonModal, addonModalSetter] = useState(false)
-  const [variation, variationSetter] = useState(
-    props.food
-      ? props.food.variations.map(({ title, price, discounted, addons }) => {
-          return {
-            title,
-            price,
-            discounted,
-            addons,
-            titleError: null,
-            priceError: null
+  const [variation, setVariation] = useState(
+    props.food && props.food.variations.length
+      ? props.food?.variations?.map(
+          ({ _id, title, price, discounted, addons, stock }) => {
+            return {
+              _id,
+              title,
+              price,
+              discounted,
+              addons,
+              titleError: null,
+              priceError: null,
+              stock
+            }
           }
-        })
+        )
       : [
           {
             title: '',
@@ -75,16 +102,27 @@ function Food(props) {
             discounted: '',
             addons: [],
             titleError: null,
-            priceError: null
+            priceError: null,
+            stock: ''
           }
         ]
   )
 
   const restaurantId = localStorage.getItem('restaurantId')
 
+  // const {
+  //   data: dataStockUnits,
+  //   loading: loadingStockUnits,
+  //   error: errorStockUnits
+  // } = useQuery(getStockUnits)
+
+  // console.log({ dataStockUnits })
+  // const stockUnits = dataStockUnits?.getStockEnumValues || null
+  const stockUnits = ['In Stock', 'Low Stock', 'Out of Stock']
+
   const clearFields = () => {
     // formRef.current.reset()
-    variationSetter([
+    setVariation([
       {
         title: '',
         price: '',
@@ -110,6 +148,8 @@ function Food(props) {
     setTimeout(onDismiss, 3000)
   }
   const onCompleted = data => {
+    console.log({ data })
+
     if (!props.food) clearFields()
     const message = props.food
       ? t('FoodUpdatedSuccessfully')
@@ -118,11 +158,14 @@ function Food(props) {
     successSetter(message)
     setTitle('')
     setDescription('')
+    setSelectedStockUnit('')
     setTimeout(onDismiss, 3000)
   }
+
   const [mutate, { loading: mutateLoading }] = useMutation(mutation, {
     onError,
-    onCompleted
+    onCompleted,
+    refetchQueries: [{ query: GET_FOODS, variables: { id: restaurantId } }]
   })
 
   const {
@@ -191,41 +234,42 @@ function Food(props) {
         priceError: null
       })
     }
-    variationSetter([...variations])
+    setVariation([...variations])
   }
+
   const onRemove = index => {
     if (variation.length === 1 && index === 0) {
       return
     }
     const variations = variation
     variations.splice(index, 1)
-    variationSetter([...variations])
+    setVariation([...variations])
   }
-  const handleVariationChange = (event, index, type) => {
-    const variations = variation
 
-    if (type === 'title') {
-      variations[index][type] =
-        event.target.value.length === 1
-          ? event.target.value.toUpperCase()
-          : event.target.value
-      variationSetter([...variations])
-    } else if (type === 'discounted') {
-      // Enforce non-negative discounted price
-      const newValue = Math.max(0, parseFloat(event.target.value))
-      // variations[index][type] = newValue
-      if (newValue > 0)
-      {
-        variations[index][type] = newValue
-        variationSetter([...variations])
+  console.log({ variation })
+
+  const handleVariationChange = (event, index, type) => {
+    setVariation(prev => {
+      const updated = [...prev] // shallow copy array
+      const updatedItem = { ...updated[index] } // shallow copy the item
+      const value = event.target.value
+
+      if (type === 'title') {
+        updatedItem[type] = value.length === 1 ? value.toUpperCase() : value
+      } else if (type === 'discounted') {
+        const newValue = Math.max(0, parseFloat(value))
+        if (newValue > 0) {
+          updatedItem[type] = newValue
+        }
+      } else {
+        updatedItem[type] = value
       }
-      // variations[index][type + 'Error'] = newValue < 0 // Update error based on new value
-      // variationSetter([...variations])
-    } else {
-      variations[index][type] = event.target.value
-      variationSetter([...variations])
-    }
+
+      updated[index] = updatedItem // replace with cloned and modified item
+      return updated
+    })
   }
+
   const onSubmitValidaiton = () => {
     const titleError = !validateFunc(
       { title: formRef.current['input-title'].value },
@@ -235,30 +279,31 @@ function Food(props) {
       { category: formRef.current['input-category'].value },
       'category'
     )
-    const variations = variation
-    variations.map(variationItem => {
-      variationItem.priceError = !validateFunc(
-        { price: variationItem.price },
-        'price'
-      )
-      let error = false
-      const occ = variation.filter(v => v.title === variationItem.title)
-      if (occ.length > 1) error = true
-      variationItem.titleError = error
-        ? !error
-        : variations.length > 1
-        ? !validateFunc({ title: variationItem.title }, 'title')
-        : true
+    // const variations = variation
+    // variations.map(variationItem => {
+    //   variationItem.priceError = !validateFunc(
+    //     { price: variationItem.price },
+    //     'price'
+    //   )
+    //   let error = false
+    //   const occ = variation.filter(v => v.title === variationItem.title)
+    //   if (occ.length > 1) error = true
+    //   variationItem.titleError = error
+    //     ? !error
+    //     : variations.length > 1
+    //     ? !validateFunc({ title: variationItem.title }, 'title')
+    //     : true
 
-      return variationItem
-    })
-    const variationsError = !variation.filter(
-      variationItem => !variationItem.priceError || !variationItem.titleError
-    ).length
+    //   return variationItem
+    // })
+    // const variationsError = !variation.filter(
+    //   variationItem => !variationItem.priceError || !variationItem.titleError
+    // ).length
     titleErrorSetter(titleError)
     categoryErrorSetter(categoryError)
-    variationSetter([...variations])
-    return titleError && categoryError && variationsError
+    // setVariation([...variations])
+    // return titleError && categoryError && variationsError
+    return titleError && categoryError
   }
 
   const onBlurVariation = (index, type) => {
@@ -281,7 +326,7 @@ function Food(props) {
         type
       )
     }
-    variationSetter([...variations])
+    setVariation([...variations])
   }
 
   const updateAddonsList = ids => {
@@ -289,7 +334,7 @@ function Food(props) {
     variations[variationIndex].addons = variations[
       variationIndex
     ].addons.concat(ids)
-    variationSetter([...variations])
+    setVariation([...variations])
   }
 
   // show Create Addon modal
@@ -297,37 +342,37 @@ function Food(props) {
     addonModalSetter(prev => !prev)
     variationIndexSetter(index)
   }
+
   const onSelectAddon = (index, id) => {
     const variations = variation
-    const addon = variations[index].addons.indexOf(id)
-    if (addon < 0) variations[index].addons.push(id)
-    else variations[index].addons.splice(addon, 1)
-    variationSetter([...variations])
+    // const addon = variations[index].addons.indexOf(id)
+    const foundAddon = variations[index].addons.find(item => item === id)
+    console.log({ foundAddon })
+    if (foundAddon) {
+      const newArr = variations[index].addons.filter(item => item !== id)
+      variations[index].addons = newArr
+      console.log({ newArr })
+      setVariation([...variations])
+    } else {
+      variations[index].addons = [...variations[index].addons, id]
+      setVariation([...variations])
+    }
+
+    // if (addon < 0) variations[index].addons.push(id)
+    // else variations[index].addons.splice(addon, 1)
   }
 
-  const uploadImageToCloudinary = async() => {
-    if (imgMenu === '') return imgMenu
-    if (props.food && props.food.image === imgMenu) return imgMenu
-
-    const apiUrl = CLOUDINARY_UPLOAD_URL
-    const data = {
-      file: imgMenu,
-      upload_preset: CLOUDINARY_FOOD
-    }
-    try {
-      const result = await fetch(apiUrl, {
-        body: JSON.stringify(data),
-        headers: {
-          'content-type': 'application/json'
-        },
-        method: 'POST'
-      })
-      const imageData = await result.json()
-      return imageData.secure_url
-    } catch (e) {
-      console.log(e)
-    }
+  const foundAddon = (index, id) => {
+    const variations = variation
+    const foundAddon = variations[index].addons.find(item => item === id)
+    if (foundAddon) return true
+    return false
   }
+
+  const closeEditModal = () => {
+    setEditModal(false)
+  }
+
   const { t } = props
   const classes = useStyles()
   const globalClasses = useGlobalStyles()
@@ -409,19 +454,54 @@ function Food(props) {
                     {t('SelectCategory')}
                   </MenuItem>
                 )}
-                {dataCategories &&
-                  dataCategories.restaurant.categories
-                    .filter(category => {
-                      return category.title !== 'Default Category' 
-                    })
-                    .map(category => (
-                      <MenuItem
-                        value={category._id}
-                        key={category._id}
-                        style={{ color: 'black' }}>
-                        {category.title}
-                      </MenuItem>
-                    ))}
+                {dataCategories?.categoriesByRestaurant
+                  .filter(category => {
+                    return category.title !== 'Default Category'
+                  })
+                  .map(category => (
+                    <MenuItem
+                      value={category._id}
+                      key={category._id}
+                      style={{ color: 'black' }}>
+                      {category.title}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </Box>
+            {/* <Typography className={classes.labelText}>
+              {t('stock_amount')}
+            </Typography>
+            <Input
+              style={{ marginTop: -1 }}
+              id="input-stockAmount"
+              name="input-stockAmount"
+              placeholder={t('stock_amount')}
+              type="text"
+              value={stockAmount}
+              onChange={e => setStockAmount(e.target.value)}
+              disableUnderline
+              className={[globalClasses.input]}
+            /> */}
+            <Box className={globalClasses.flexRow}>
+              <Select
+                id="input-stockUnit"
+                name="input-stockUnit"
+                defaultValue={[selectedStockUnit || '']}
+                value={selectedStockUnit}
+                onChange={e => setSelectedStockUnit(e.target.value)}
+                displayEmpty
+                inputProps={{ 'aria-label': 'Without label' }}
+                className={[globalClasses.input]}>
+                {!selectedStockUnit && (
+                  <MenuItem value="" style={{ color: 'black' }}>
+                    {t('select_stock')}
+                  </MenuItem>
+                )}
+                {stockUnits?.map((item, index) => (
+                  <MenuItem value={item} key={index} style={{ color: 'black' }}>
+                    {item}
+                  </MenuItem>
+                ))}
               </Select>
             </Box>
             <Box
@@ -431,10 +511,7 @@ function Food(props) {
               <img
                 className={classes.image}
                 alt="..."
-                src={
-                  imgMenu ||
-                  'https://enatega.com/wp-content/uploads/2023/11/man-suit-having-breakfast-kitchen-side-view.webp'
-                }
+                src={imgMenu || foodPlaceholder}
               />
               <label
                 htmlFor={props.food ? 'edit-food-image' : 'add-food-image'}
@@ -446,8 +523,9 @@ function Food(props) {
                 id={props.food ? 'edit-food-image' : 'add-food-image'}
                 type="file"
                 accept="image/*"
-                onChange={event => {
-                  selectImage(event, 'imgMenu')
+                onChange={e => {
+                  selectImage(e, 'imgMenu')
+                  setImage(e.target.files[0])
                 }}
               />
             </Box>
@@ -461,172 +539,211 @@ function Food(props) {
                 </Box>
               </Box>
               <Box classes={classes.form}>
-                {variation.map((variationItem, index) => (
-                  <Box key={variationItem._id} pl={1} pr={1}>
-                    <Box className={globalClasses.flexRow}>
-                      <Grid container>
-                        <Grid item xs={12} sm={6}>
-                          <Box mt={2}>
-                            <Typography className={classes.labelText}>
-                              {t('UniqueTitle')}
-                            </Typography>
-                            <Input
-                              style={{ marginTop: -1 }}
-                              id="input-type"
-                              placeholder={t('Title')}
-                              type="text"
-                              value={variationItem.title}
-                              onChange={event => {
-                                handleVariationChange(
-                                  event,
-                                  index,
-                                  'title',
-                                  'variations'
-                                )
-                              }}
-                              onBlur={event => {
-                                onBlurVariation(index, 'title')
-                              }}
-                              disableUnderline
-                              className={[
-                                globalClasses.input,
-                                variationItem.titleError === false
-                                  ? globalClasses.inputError
-                                  : variationItem.titleError === true
-                                  ? globalClasses.inputSuccess
-                                  : ''
-                              ]}
-                            />
-                          </Box>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <Box mt={2}>
-                            <Typography className={classes.labelText}>
-                              {t('Price')}
-                            </Typography>
-                            <Input
-                              style={{ marginTop: -1 }}
-                              value={variationItem.price}
-                              id="input-price"
-                              placeholder={t('Price')}
-                              type="number"
-                              onChange={event => {
-                                handleVariationChange(
-                                  event,
-                                  index,
-                                  'price',
-                                  'variations'
-                                )
-                              }}
-                              onBlur={event => {
-                                onBlurVariation(index, 'price')
-                              }}
-                              disableUnderline
-                              className={[
-                                globalClasses.input,
-                                variationItem.priceError === false
-                                  ? globalClasses.inputError
-                                  : variationItem.priceError === true
-                                  ? globalClasses.inputSuccess
-                                  : ''
-                              ]}
-                            />
-                          </Box>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <Box mt={2}>
-                            <Typography className={classes.labelText}>
-                              {t('Discounted')}
-                            </Typography>
-                            <Input
-                              style={{ marginTop: -1 }}
-                              value={variationItem.discounted}
-                              id="input-discounted"
-                              placeholder={t('Discounted')}
-                              type="number"
-                              onChange={event => {
-                                handleVariationChange(
-                                  event,
-                                  index,
-                                  'discounted',
-                                  'variations'
-                                )
-                              }}
-                              onBlur={event => {
-                                onBlurVariation(index, 'discounted')
-                              }}
-                              disableUnderline
-                              className={[globalClasses.input]}
-                            />
-                          </Box>
-                        </Grid>
-                      </Grid>
-                    </Box>
+                {variation?.map((variationItem, index) => {
+                  console.log(
+                    `stock value for index ${index}:`,
+                    variationItem.stock
+                  )
 
-                    <Box>
-                      <RemoveIcon
-                        style={{
-                          backgroundColor: theme.palette.common.black,
-                          color: theme.palette.warning.dark,
-                          borderRadius: '50%',
-                          marginTop: 12,
-                          marginRight: 10
-                        }}
-                        onClick={() => {
-                          onRemove(index)
-                        }}
-                      />
-                      <AddIcon
-                        style={{
-                          backgroundColor: theme.palette.warning.dark,
-                          color: theme.palette.common.black,
-                          borderRadius: '50%',
-                          marginTop: 12
-                        }}
-                        onClick={() => {
-                          onAdd(index)
-                        }}
-                      />
-                    </Box>
-                    <Box>
-                      {loadingAddons && t('LoadingDots')}
-                      {errorAddons && t('ErrorDots')}
-                      {dataAddons &&
-                        dataAddons.restaurant.addons
-                        .filter(
-                          addon => addon.title !== 'Default Addon'
-                        )
-                        .map(addon => (
-                          <Grid
-                            item
-                            xs={12}
-                            md={6}
-                            key={addon._id}
-                            style={{ textAlign: 'left', paddingLeft: 20 }}>
-                            <FormControlLabel
-                              control={
-                                <Checkbox
-                                  value={addon._id}
-                                  checked={variation[index].addons.includes(
-                                    addon._id
-                                  )}
-                                  onChange={() =>
-                                    onSelectAddon(index, addon._id)
-                                  }
-                                />
-                              }
-                              label={`${addon.title} (Description: ${addon.description})(Min: ${addon.quantityMinimum})(Max: ${addon.quantityMaximum})`}
-                            />
+                  return (
+                    <Box key={index} pl={1} pr={1}>
+                      <Box className={globalClasses.flexRow}>
+                        <Grid container>
+                          <Grid item xs={12} sm={6}>
+                            <Box mt={2}>
+                              <Typography className={classes.labelText}>
+                                {t('UniqueTitle')}
+                              </Typography>
+                              <Input
+                                style={{ marginTop: -1 }}
+                                id="input-type"
+                                placeholder={t('Title')}
+                                type="text"
+                                value={variationItem.title}
+                                onChange={event => {
+                                  handleVariationChange(
+                                    event,
+                                    index,
+                                    'title',
+                                    'variations'
+                                  )
+                                }}
+                                onBlur={event => {
+                                  onBlurVariation(index, 'title')
+                                }}
+                                disableUnderline
+                                className={[
+                                  globalClasses.input,
+                                  variationItem.titleError === false
+                                    ? globalClasses.inputError
+                                    : variationItem.titleError === true
+                                    ? globalClasses.inputSuccess
+                                    : ''
+                                ]}
+                              />
+                            </Box>
                           </Grid>
-                        ))}
+                          <Grid item xs={12} sm={6}>
+                            <Box mt={2}>
+                              <Typography className={classes.labelText}>
+                                {t('Price')}
+                              </Typography>
+                              <Input
+                                style={{ marginTop: -1 }}
+                                value={variationItem.price}
+                                id="input-price"
+                                placeholder={t('Price')}
+                                type="number"
+                                onChange={event => {
+                                  handleVariationChange(
+                                    event,
+                                    index,
+                                    'price',
+                                    'variations'
+                                  )
+                                }}
+                                onBlur={event => {
+                                  onBlurVariation(index, 'price')
+                                }}
+                                disableUnderline
+                                className={[
+                                  globalClasses.input,
+                                  variationItem.priceError === false
+                                    ? globalClasses.inputError
+                                    : variationItem.priceError === true
+                                    ? globalClasses.inputSuccess
+                                    : ''
+                                ]}
+                              />
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <Box mt={2}>
+                              <Typography className={classes.labelText}>
+                                {t('Discounted')}
+                              </Typography>
+                              <Input
+                                style={{ marginTop: -1 }}
+                                value={variationItem.discounted}
+                                id="input-discounted"
+                                placeholder={t('Discounted')}
+                                type="number"
+                                onChange={event => {
+                                  handleVariationChange(
+                                    event,
+                                    index,
+                                    'discounted',
+                                    'variations'
+                                  )
+                                }}
+                                onBlur={event => {
+                                  onBlurVariation(index, 'discounted')
+                                }}
+                                disableUnderline
+                                className={[globalClasses.input]}
+                              />
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <Box>
+                              <Typography className={classes.labelText}>
+                                {t('select_stock')}
+                              </Typography>
+                              <Select
+                                id="input-stockUnit"
+                                name="input-stockUnit"
+                                value={variationItem.stock || ''}
+                                onChange={e =>
+                                  handleVariationChange(
+                                    e,
+                                    index,
+                                    'stock',
+                                    'variations'
+                                  )
+                                }
+                                displayEmpty
+                                inputProps={{ 'aria-label': 'Without label' }}
+                                className={[globalClasses.input]}
+                                sx={{ marginTop: '5px !important' }}>
+                                {!variationItem.stock && (
+                                  <MenuItem value="" style={{ color: 'black' }}>
+                                    {t('select_stock')}
+                                  </MenuItem>
+                                )}
+                                {stockUnits?.map((item, index) => (
+                                  <MenuItem
+                                    value={item}
+                                    key={index}
+                                    style={{ color: 'black' }}>
+                                    {item}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </Box>
+                          </Grid>
+                        </Grid>
+                      </Box>
+
+                      <Box>
+                        <RemoveIcon
+                          style={{
+                            backgroundColor: theme.palette.common.black,
+                            color: theme.palette.warning.dark,
+                            borderRadius: '50%',
+                            marginTop: 12,
+                            marginRight: 10
+                          }}
+                          onClick={() => {
+                            onRemove(index)
+                          }}
+                        />
+                        <AddIcon
+                          style={{
+                            backgroundColor: theme.palette.warning.dark,
+                            color: theme.palette.common.black,
+                            borderRadius: '50%',
+                            marginTop: 12
+                          }}
+                          onClick={() => {
+                            onAdd(index)
+                          }}
+                        />
+                      </Box>
+                      <Box>
+                        {loadingAddons && t('LoadingDots')}
+                        {errorAddons && t('ErrorDots')}
+                        {dataAddons?.getAddonsByRestaurant.map(addon => {
+                          return (
+                            <Grid
+                              item
+                              xs={12}
+                              md={6}
+                              key={addon._id}
+                              style={{ textAlign: 'left', paddingLeft: 20 }}>
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    value={addon._id}
+                                    checked={foundAddon(index, addon._id)}
+                                    onChange={() =>
+                                      onSelectAddon(index, addon._id)
+                                    }
+                                  />
+                                }
+                                label={`${addon.title} (Description: ${addon.description})(Min: ${addon.quantityMinimum})(Max: ${addon.quantityMaximum})`}
+                              />
+                            </Grid>
+                          )
+                        })}
+                      </Box>
+                      <Button
+                        className={classes.button}
+                        onClick={() => toggleModal(index)}>
+                        {t('NewAddon')}
+                      </Button>
                     </Box>
-                    <Button
-                      className={classes.button}
-                      onClick={() => toggleModal(index)}>
-                      {t('NewAddon')}
-                    </Button>
-                  </Box>
-                ))}
+                  )
+                })}
               </Box>
             </Box>
           </Box>
@@ -644,21 +761,36 @@ function Food(props) {
                         _id: props.food ? props.food._id : '',
                         title: formRef.current['input-title'].value,
                         description: formRef.current['input-description'].value,
-                        image: await uploadImageToCloudinary(),
+                        file: image,
+                        stock: selectedStockUnit,
                         category: formRef.current['input-category'].value,
                         variations: variation.map(
-                          ({ title, price, discounted, addons }) => {
-                            return {
+                          ({
+                            _id,
+                            title,
+                            price,
+                            discounted,
+                            addons,
+                            stock
+                          }) => {
+                            console.log({ _id })
+                            const obj = {
                               title,
                               price: +price,
                               discounted: +discounted,
-                              addons
+                              addons,
+                              stock
                             }
+                            if (_id) {
+                              obj._id = _id // only include if truthy
+                            }
+                            return obj
                           }
                         )
                       }
                     }
                   })
+
                   // Close the modal after 3 seconds by calling the parent's onClose callback
                   setTimeout(() => {
                     props.onClose() // Close the modal
@@ -698,7 +830,10 @@ function Food(props) {
         onClose={() => {
           toggleModal()
         }}>
-        <AddonComponent updateAddonsList={updateAddonsList} />
+        <AddonComponent
+          updateAddonsList={updateAddonsList}
+          onClose={closeEditModal}
+        />
       </Modal>
     </Box>
   )

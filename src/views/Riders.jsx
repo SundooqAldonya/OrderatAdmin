@@ -1,6 +1,6 @@
 /* eslint-disable react/display-name */
 import React, { useState } from 'react'
-import { withTranslation } from 'react-i18next'
+import { useTranslation, withTranslation } from 'react-i18next'
 import { useQuery, useMutation, gql } from '@apollo/client'
 import Header from '../components/Headers/Header'
 import CustomLoader from '../components/Loader/CustomLoader'
@@ -12,7 +12,8 @@ import {
   getRiders,
   deleteRider,
   toggleAvailablity,
-  getAvailableRiders
+  getAvailableRiders,
+  toggleActive
 } from '../apollo'
 import useGlobalStyles from '../utils/globalStyles'
 import {
@@ -35,6 +36,7 @@ import { ReactComponent as RiderIcon } from '../assets/svg/svg/Rider.svg'
 import TableHeader from '../components/TableHeader'
 import Alert from '../components/Alert'
 import ConfigurableValues from '../config/constants'
+import moment from 'moment'
 
 const GET_RIDERS = gql`
   ${getRiders}
@@ -45,23 +47,33 @@ const DELETE_RIDER = gql`
 const TOGGLE_RIDER = gql`
   ${toggleAvailablity}
 `
+const TOGGLE_ACTIVE = gql`
+  ${toggleActive}
+`
 const GET_AVAILABLE_RIDERS = gql`
   ${getAvailableRiders}
 `
 
 function Riders(props) {
-  const {PAID_VERSION} = ConfigurableValues()
+  // const { PAID_VERSION } = ConfigurableValues()
   const [editModal, setEditModal] = useState(false)
   const [rider, setRider] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const onChangeSearch = e => setSearchQuery(e.target.value)
+
   const [mutateToggle] = useMutation(TOGGLE_RIDER, {
     refetchQueries: [{ query: GET_RIDERS }, { query: GET_AVAILABLE_RIDERS }]
   })
+
+  const [mutateActive] = useMutation(TOGGLE_ACTIVE, {
+    refetchQueries: [{ query: GET_RIDERS }, { query: GET_AVAILABLE_RIDERS }]
+  })
+
   const [mutateDelete] = useMutation(DELETE_RIDER, {
     refetchQueries: [{ query: GET_RIDERS }]
   })
+
   const { data, error: errorQuery, loading: loadingQuery, refetch } = useQuery(
     GET_RIDERS
   )
@@ -122,8 +134,32 @@ function Riders(props) {
       cell: row => <>{availableStatus(row)}</>
     },
     {
+      name: t('Active'),
+      cell: row => <>{isActiveStatus(row)}</>
+    },
+    {
       name: t('Action'),
-      cell: row => <>{actionButtons(row)}</>
+      cell: row => <>{ActionButtons(row, toggleModal, mutateDelete)}</>
+    },
+    {
+      name: t('start_date'),
+      cell: row => (
+        <>
+          {row.startAvailabilityDate
+            ? moment(row.startAvailabilityDate).format('LLL')
+            : 'N/A'}
+        </>
+      )
+    },
+    {
+      name: t('end_date'),
+      cell: row => (
+        <>
+          {row.endAvailabilityDate
+            ? moment(row.endAvailabilityDate).format('LLL')
+            : 'N/A'}
+        </>
+      )
     }
   ]
 
@@ -143,78 +179,23 @@ function Riders(props) {
     )
   }
 
-  const actionButtons = row => {
-    const [anchorEl, setAnchorEl] = React.useState(null)
-    const open = Boolean(anchorEl)
-    const handleClick = event => {
-      setAnchorEl(event.currentTarget)
-    }
-    const handleClose = () => {
-      setAnchorEl(null)
-    }
+  const isActiveStatus = row => {
+    console.log({ isActive: row.isActive })
     return (
       <>
-        <div>
-          <IconButton
-            aria-label="more"
-            id="long-button"
-            aria-haspopup="true"
-            onClick={handleClick}>
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-          <Paper>
-            <Menu
-              id="long-menu"
-              MenuListProps={{
-                'aria-labelledby': 'long-button'
-              }}
-              anchorEl={anchorEl}
-              open={open}
-              onClose={handleClose}>
-              <MenuItem
-                onClick={e => {
-                  e.preventDefault()
-                  
-                  if(PAID_VERSION)
-                  toggleModal(row)
-                else{
-                  setIsOpen(true)
-                  setTimeout(() => {
-                    setIsOpen(false)
-                  }, 5000)
-                }
-                }}
-                style={{ height: 25 }}>
-                <ListItemIcon>
-                  <EditIcon fontSize="small" style={{ color: 'green' }} />
-                </ListItemIcon>
-                <Typography color="green">{t('Edit')}</Typography>
-              </MenuItem>
-              <MenuItem
-                onClick={e => {
-                  e.preventDefault()
-                  
-                  if(PAID_VERSION)
-                  mutateDelete({ variables: { id: row._id } })
-                else{
-                  setIsOpen(true)
-                  setTimeout(() => {
-                    setIsOpen(false)
-                  }, 5000)
-                }
-                }}
-                style={{ height: 25 }}>
-                <ListItemIcon>
-                  <DeleteIcon fontSize="small" style={{ color: 'red' }} />
-                </ListItemIcon>
-                <Typography color="red">{t('Delete')}</Typography>
-              </MenuItem>
-            </Menu>
-          </Paper>
-        </div>
+        {/* {row.isActive} */}
+        <Switch
+          size="small"
+          defaultChecked={row.isActive}
+          onChange={_event => {
+            mutateActive({ variables: { id: row._id } })
+          }}
+          style={{ color: 'black' }}
+        />
       </>
     )
   }
+
   const regex =
     searchQuery.length > 2 ? new RegExp(searchQuery.toLowerCase(), 'g') : null
   const filtered =
@@ -293,6 +274,66 @@ function Riders(props) {
           <RiderComponent rider={rider} onClose={closeEditModal} />
         </Modal>
       </Container>
+    </>
+  )
+}
+
+const ActionButtons = (row, toggleModal, mutateDelete) => {
+  const [anchorEl, setAnchorEl] = useState(null)
+  const { t } = useTranslation()
+  const open = Boolean(anchorEl)
+  const handleClick = event => {
+    setAnchorEl(event.currentTarget)
+  }
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+  return (
+    <>
+      <div>
+        <IconButton
+          aria-label="more"
+          id="long-button"
+          aria-haspopup="true"
+          onClick={handleClick}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+        <Paper>
+          <Menu
+            id="long-menu"
+            MenuListProps={{
+              'aria-labelledby': 'long-button'
+            }}
+            anchorEl={anchorEl}
+            open={open}
+            onClose={handleClose}>
+            <MenuItem
+              onClick={e => {
+                e.preventDefault()
+
+                toggleModal(row)
+              }}
+              style={{ height: 25 }}>
+              <ListItemIcon>
+                <EditIcon fontSize="small" style={{ color: 'green' }} />
+              </ListItemIcon>
+              <Typography color="green">{t('Edit')}</Typography>
+            </MenuItem>
+            <MenuItem
+              onClick={e => {
+                e.preventDefault()
+
+                mutateDelete({ variables: { id: row._id } })
+              }}
+              style={{ height: 25 }}>
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" style={{ color: 'red' }} />
+              </ListItemIcon>
+              <Typography color="red">{t('Delete')}</Typography>
+            </MenuItem>
+          </Menu>
+        </Paper>
+      </div>
     </>
   )
 }

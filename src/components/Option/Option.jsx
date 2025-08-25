@@ -10,7 +10,7 @@ import {
 } from '@mui/material'
 import { withTranslation } from 'react-i18next'
 import { useMutation, gql } from '@apollo/client'
-import { createOptions, editOption } from '../../apollo'
+import { createOptions, editOption, getOptions } from '../../apollo'
 import { validateFunc } from '../../constraints/constraints'
 import useStyles from './styles'
 import useGlobalStyles from '../../utils/globalStyles'
@@ -21,6 +21,9 @@ const CREATE_OPTIONS = gql`
   ${createOptions}
 `
 
+const GET_OPTIONS = gql`
+  ${getOptions}
+`
 const EDIT_OPTION = gql`
   ${editOption}
 `
@@ -28,6 +31,7 @@ const EDIT_OPTION = gql`
 function Option(props) {
   const theme = useTheme()
   const { t } = props
+  const restaurantId = localStorage.getItem('restaurantId')
   const [option, optionSetter] = useState(
     props.option
       ? [{ ...props.option, titleError: false, priceError: false }]
@@ -43,7 +47,7 @@ function Option(props) {
   )
   const [mainError, mainErrorSetter] = useState('')
   const [success, successSetter] = useState('')
-  const mutation = props.option ? EDIT_OPTION : CREATE_OPTIONS
+  // const mutation = props.option ? EDIT_OPTION : CREATE_OPTIONS
   const onCompleted = ({ createOptions, editOption }) => {
     if (createOptions) {
       optionSetter([
@@ -69,7 +73,16 @@ function Option(props) {
     successSetter('')
     setTimeout(hideAlert, 3000)
   }
-  const [mutate, { loading }] = useMutation(mutation, { onError, onCompleted })
+  const [mutate, { loading }] = useMutation(CREATE_OPTIONS, {
+    onError,
+    onCompleted,
+    refetchQueries: [{ query: GET_OPTIONS, variables: { id: restaurantId } }]
+  })
+  const [mutateEdit, { loading: EditIsLoading }] = useMutation(EDIT_OPTION, {
+    onError,
+    onCompleted,
+    refetchQueries: [{ query: GET_OPTIONS, variables: { id: restaurantId } }]
+  })
   const hideAlert = () => {
     mainErrorSetter('')
     successSetter('')
@@ -126,8 +139,6 @@ function Option(props) {
     if (!error.length) return true
     return false
   }
-
-  const restaurantId = localStorage.getItem('restaurantId')
 
   const classes = useStyles()
   const globalClasses = useGlobalStyles()
@@ -272,21 +283,22 @@ function Option(props) {
                     return
                   }
                   props.option
-                    ? mutate({
+                    ? mutateEdit({
                         variables: {
+                          // id: props.option._id,
                           optionInput: {
                             options: {
                               _id: props.option._id,
                               title: option[0].title,
                               description: option[0].description,
                               price: +option[0].price
-                            },
-                            restaurant: restaurantId
+                            }
                           }
                         }
                       })
                     : mutate({
                         variables: {
+                          id: restaurantId,
                           optionInput: {
                             options: option.map(
                               ({ title, description, price }) => ({
@@ -294,11 +306,12 @@ function Option(props) {
                                 description,
                                 price: +price
                               })
-                            ),
-                            restaurant: restaurantId
+                            )
+                            // restaurant: restaurantId
                           }
                         }
                       })
+
                   // Close the modal after 3 seconds by calling the parent's onClose callback
                   setTimeout(() => {
                     props.onClose() // Close the modal

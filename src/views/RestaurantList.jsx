@@ -5,12 +5,20 @@ import { withTranslation } from 'react-i18next'
 import CustomLoader from '../components/Loader/CustomLoader'
 // core components
 import Header from '../components/Headers/Header'
-import { restaurants, deleteRestaurant } from '../apollo'
+import { restaurants, deleteRestaurant, makeRestaurantVisible } from '../apollo'
 import DataTable from 'react-data-table-component'
 import orderBy from 'lodash/orderBy'
 import Loader from 'react-loader-spinner'
 import SearchBar from '../components/TableHeader/SearchBar'
-import { Container, Button, Box, useTheme, Snackbar } from '@mui/material'
+import {
+  Container,
+  Button,
+  Box,
+  useTheme,
+  Snackbar,
+  FormControlLabel,
+  Switch
+} from '@mui/material'
 import { customStyles } from '../utils/tableCustomStyles'
 import useGlobalStyles from '../utils/globalStyles'
 import { ReactComponent as RestIcon } from '../assets/svg/svg/Restaurant.svg'
@@ -31,19 +39,24 @@ const Restaurants = props => {
   const globalClasses = useGlobalStyles()
 
   const [mutate, { loading }] = useMutation(DELETE_RESTAURANT, {
-    onError: (error)=> {
-      setError(error.graphQLErrors[0].message || 'Something went wrong') 
+    onError: error => {
+      setError(error.graphQLErrors[0].message || 'Something went wrong')
     }
   })
+
   const {
     data,
     loading: loadingQuery,
     refetch,
     networkStatus
   } = useQuery(GET_RESTAURANTS, { fetchPolicy: 'network-only' })
+
+  console.log({ data })
+
   const onClickRefetch = cb => {
     cb()
   }
+
   const customSort = (rows, field, direction) => {
     const handleField = row => {
       if (row[field]) {
@@ -72,7 +85,7 @@ const Restaurants = props => {
               }}
               onClick={() => {
                 localStorage.setItem('restaurant_id', row._id)
-                props.history.push('/admin/dashboard')
+                props.history.push(`/admin/dashboard`)
               }}
             />
           )}
@@ -109,13 +122,71 @@ const Restaurants = props => {
       style: {
         cursor: 'pointer'
       },
-      cell: row => <>{row.owner ? row.owner.email : null}</>
+      cell: row => <>{row.owner && row.owner.name ? row.owner.name : 'N/A'}</>
+    },
+    {
+      name: t('city'),
+      selector: 'city',
+      style: {
+        cursor: 'pointer'
+      },
+      cell: row => <>{row.city?.title ? row.city.title : 'N/A'}</>
+    },
+    {
+      name: t('createdAt'),
+      selector: 'createdAt',
+      style: {
+        cursor: 'pointer'
+      },
+      sortable: true,
+      cell: row => (
+        <>
+          {row.createdAt
+            ? new Date(row.createdAt).toLocaleDateString('en-GB')
+            : 'N/A'}
+        </>
+      )
+    },
+    {
+      name: t('Visibility'),
+      cell: row => (
+        <Box>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={row.isVisible}
+                onChange={e => handleVisiblity(row._id)}
+                color="primary"
+              />
+            }
+          />
+        </Box>
+      )
     },
     {
       name: t('Action'),
       cell: row => <>{actionButtons(row)}</>
     }
   ]
+
+  const [mutateVisiblity] = useMutation(makeRestaurantVisible, {
+    refetchQueries: [{ query: GET_RESTAURANTS }],
+    onCompleted: res => {
+      console.log({ res })
+    },
+    onError: err => {
+      console.log({ err })
+    }
+  })
+
+  const handleVisiblity = rowId => {
+    mutateVisiblity({
+      variables: {
+        id: rowId
+      }
+    })
+  }
+
   const theme = useTheme()
   const actionButtons = row => {
     return (
@@ -153,24 +224,34 @@ const Restaurants = props => {
     }
   ]
 
-  const regex = useMemo(()=>(
-    searchQuery.length > 2 ? new RegExp(searchQuery.toLowerCase(), 'g') : null
-  ),[searchQuery])
+  const regex = useMemo(
+    () =>
+      searchQuery.length > 2
+        ? new RegExp(searchQuery.toLowerCase(), 'g')
+        : null,
+    [searchQuery]
+  )
 
-  const filtered = useMemo(()=>(
+  const filtered =
     searchQuery.length < 3
       ? data && data.restaurants
       : data &&
         data.restaurants.filter(restaurant => {
           return (
-            (restaurant.name && restaurant.name.toLowerCase().search(regex) > -1) ||
-            (restaurant.orderPrefix && restaurant.orderPrefix.toLowerCase().search(regex) > -1) ||
-            (restaurant.owner && restaurant.owner.email.toLowerCase().search(regex) > -1) ||
-            (restaurant.address && restaurant.address.toLowerCase().search(regex) > -1)
+            (restaurant.name &&
+              restaurant.name.toLowerCase().search(regex) > -1) ||
+            (restaurant.orderPrefix &&
+              restaurant.orderPrefix.toLowerCase().search(regex) > -1) ||
+            (restaurant.owner &&
+              restaurant.owner.email &&
+              restaurant.owner.email.toLowerCase().search(regex) > -1) ||
+            (restaurant.address &&
+              restaurant.address.toLowerCase().search(regex) > -1) ||
+            (restaurant.city &&
+              restaurant.city.title.toLowerCase().search(regex) > -1)
           )
         })
-  ), [searchQuery, data, regex])
-    
+
   return (
     <>
       <Header />
@@ -200,7 +281,9 @@ const Restaurants = props => {
             sortFunction={customSort}
             defaultSortField="name"
             onRowClicked={row => {
+              console.log({ rowID: row._id })
               localStorage.setItem('restaurantId', row._id)
+              localStorage.setItem('restaurant_id', row._id)
               localStorage.setItem('restaurantImage', row.image)
               localStorage.setItem('restaurantName', row.name)
               props.history.push(`/admin/dashboard/${row.slug}`)
@@ -212,7 +295,7 @@ const Restaurants = props => {
         <Snackbar
           open={error}
           autoHideDuration={5000}
-          onClose={()=>setError(null)}
+          onClose={() => setError(null)}
           message={error}
         />
       </Container>

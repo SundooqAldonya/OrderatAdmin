@@ -3,7 +3,14 @@ import { validateFunc } from '../constraints/constraints'
 import { withTranslation, useTranslation } from 'react-i18next'
 import Header from '../components/Headers/Header'
 import { useQuery, useMutation, gql } from '@apollo/client'
-import { getRestaurantProfile, editRestaurant, getCuisines } from '../apollo'
+import {
+  getRestaurantProfile,
+  editRestaurant,
+  getCuisines,
+  getCities,
+  getShopCategories,
+  getBusinessCategories
+} from '../apollo'
 import ConfigurableValues from '../config/constants'
 import useStyles from '../components/Restaurant/styles'
 import useGlobalStyles from '../utils/globalStyles'
@@ -19,7 +26,9 @@ import {
   Select,
   OutlinedInput,
   MenuItem,
-  ListItemText
+  ListItemText,
+  FormControlLabel,
+  Switch
 } from '@mui/material'
 import { Container } from '@mui/system'
 import CustomLoader from '../components/Loader/CustomLoader'
@@ -38,6 +47,27 @@ const EDIT_RESTAURANT = gql`
 const CUISINES = gql`
   ${getCuisines}
 `
+const GET_CITIES = gql`
+  ${getCities}
+`
+
+const GET_SHOP_CATEGORIES = gql`
+  ${getShopCategories}
+`
+const UPLOAD_FILE = gql`
+  mutation uploadFile($id: ID!, $file: Upload!) {
+    uploadFile(id: $id, file: $file) {
+      message
+    }
+  }
+`
+const UPLOAD_LOGO = gql`
+  mutation uploadRestaurantLogo($id: ID!, $file: Upload!) {
+    uploadRestaurantLogo(id: $id, file: $file) {
+      message
+    }
+  }
+`
 
 const ITEM_HEIGHT = 48
 const ITEM_PADDING_TOP = 8
@@ -52,10 +82,13 @@ const MenuProps = {
 
 const VendorProfile = () => {
   const { CLOUDINARY_UPLOAD_URL, CLOUDINARY_FOOD } = ConfigurableValues()
-
+  // console.log('here')
   const { t } = useTranslation()
+  const [uploadFile] = useMutation(UPLOAD_FILE)
+  const [uploadRestaurantLogo] = useMutation(UPLOAD_LOGO)
 
   const restaurantId = localStorage.getItem('restaurantId')
+  console.log({ restaurantId })
   const [showPassword, setShowPassword] = useState(false)
   const [imgUrl, setImgUrl] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
@@ -70,6 +103,15 @@ const VendorProfile = () => {
   const [errors, setErrors] = useState('')
   const [success, setSuccess] = useState('')
   const [restaurantCuisines, setRestaurantCuisines] = useState([])
+  const [restaurantCategories, setRestaurantCategories] = useState([])
+  const [image, setImage] = useState(null)
+  const [logo, setLogo] = useState(null)
+  const [selectedCity, setSelectedCity] = useState('')
+  const [category, setCategory] = useState('')
+  const [salesPersonName, setSalesPersonName] = useState('')
+  const [responsiblePersonName, setResponsiblePersonName] = useState('')
+  const [contactNumber, setContactNumber] = useState('')
+  const [isVisible, setIsVisible] = useState(false)
 
   const onCompleted = data => {
     setNameError(null)
@@ -107,6 +149,7 @@ const VendorProfile = () => {
     setErrors('')
     setSuccess('')
   }
+
   const { data, error: errorQuery, loading: loadingQuery } = useQuery(
     GET_PROFILE,
     {
@@ -114,8 +157,24 @@ const VendorProfile = () => {
     }
   )
 
+  console.log({ data })
+
+  const {
+    data: dataCategories,
+    loading: loadingCategories,
+    error: errorCategories
+  } = useQuery(GET_SHOP_CATEGORIES)
+
+  const {
+    data: dataCities,
+    error: errorCities,
+    loading: loadingCities
+  } = useQuery(GET_CITIES)
+
+  const cities = dataCities?.citiesAdmin || null
   const restaurantImage = data?.restaurant?.image
   const restaurantLogo = data?.restaurant?.logo
+  const shopCategories = dataCategories?.getShopCategories || null
 
   const [mutate, { loading }] = useMutation(EDIT_RESTAURANT, {
     onError,
@@ -123,9 +182,34 @@ const VendorProfile = () => {
     refetchQueries: [GET_PROFILE]
   })
 
+  useEffect(() => {
+    if (data?.restaurant?.shopCategory) {
+      setCategory(data?.restaurant.shopCategory._id)
+    }
+    if (data?.restaurant?.salesPersonName) {
+      setSalesPersonName(data?.restaurant.salesPersonName)
+    }
+    if (data?.restaurant?.responsiblePersonName) {
+      setResponsiblePersonName(data?.restaurant.responsiblePersonName)
+    }
+    if (data?.restaurant?.contactNumber) {
+      setContactNumber(data?.restaurant.contactNumber)
+    }
+    if (data?.restaurant?.isVisible) {
+      setIsVisible(data?.restaurant?.isVisible)
+    }
+  }, [data?.restaurant])
+
   const formRef = useRef(null)
 
   const handleFileSelect = (event, type) => {
+    setImage(event.target.files[0])
+    let result
+    result = filterImage(event)
+    if (result) imageToBase64(result, type)
+  }
+  const handleLogoSelect = (event, type) => {
+    setLogo(event.target.files[0])
     let result
     result = filterImage(event)
     if (result) imageToBase64(result, type)
@@ -150,29 +234,6 @@ const VendorProfile = () => {
       }
     }
     fileReader.readAsDataURL(imgUrl)
-  }
-
-  const uploadImageToCloudinary = async uploadType => {
-    if (!uploadType) return
-
-    const apiUrl = CLOUDINARY_UPLOAD_URL
-    const data = {
-      file: uploadType,
-      upload_preset: CLOUDINARY_FOOD
-    }
-    try {
-      const result = await fetch(apiUrl, {
-        body: JSON.stringify(data),
-        headers: {
-          'content-type': 'application/json'
-        },
-        method: 'POST'
-      })
-      const imageData = await result.json()
-      return imageData.secure_url
-    } catch (e) {
-      console.log(e)
-    }
   }
 
   const onSubmitValidaiton = data => {
@@ -253,6 +314,32 @@ const VendorProfile = () => {
   }
 
   const { data: cuisines } = useQuery(CUISINES)
+  const { data: businessCategoriesData } = useQuery(getBusinessCategories)
+
+  console.log({ businessCategoriesData })
+
+  const businessCategories =
+    businessCategoriesData?.getBusinessCategories || null
+
+  useEffect(() => {
+    if (
+      businessCategories?.length &&
+      data?.restaurant?.businessCategories?.length
+    ) {
+      const initialObjects = data.restaurant.businessCategories
+        // for each saved ID, find the matching full object
+        .map(item => businessCategories.find(cat => cat._id === item._id))
+        // drop any IDs that didn’t match
+        .filter(Boolean)
+
+      console.log({ initialObjects })
+
+      setRestaurantCategories(initialObjects)
+    }
+  }, [businessCategories, data?.restaurant?.businessCategories])
+
+  console.log({ restaurantCategories })
+
   const cuisinesInDropdown = useMemo(
     () => cuisines?.cuisines?.map(item => item.name),
     [cuisines]
@@ -264,17 +351,97 @@ const VendorProfile = () => {
     setRestaurantCuisines(typeof value === 'string' ? value.split(',') : value)
   }
 
+  const handleBusinessCategoryChange = e => {
+    console.log({ values: e.target.value })
+    setRestaurantCategories(e.target.value)
+  }
+
   useEffect(() => {
     setRestaurantCuisines(data?.restaurant?.cuisines)
   }, [data?.restaurant?.cuisines])
+
+  useEffect(() => {
+    setSelectedCity(data?.restaurant?.city?._id)
+  }, [data])
 
   useEffect(() => {
     if (restaurantImage) setImgUrl(restaurantImage)
     if (restaurantLogo) setLogoUrl(restaurantLogo)
   }, [restaurantImage, restaurantLogo])
 
+  const handleSubmit = async e => {
+    e.preventDefault()
+
+    if (onSubmitValidaiton()) {
+      const form = formRef.current
+      const name = form.name.value
+      const address = form.address.value
+      const prefix = form.prefix.value // can we not update this?
+      const deliveryTime = form.deliveryTime.value
+      const minimumOrder = form.minimumOrder.value
+      const username = form.username.value
+      const password = form.password.value
+      const salesTax = form.salesTax.value
+      const shopType = !category ? data?.restaurant.shopCategory._id : category
+      const city = selectedCity
+
+      mutate({
+        variables: {
+          restaurantInput: {
+            _id: restaurantId,
+            name,
+            address,
+            orderPrefix: prefix,
+            deliveryTime: Number(deliveryTime),
+            minimumOrder: Number(minimumOrder),
+            username: username,
+            password: password,
+            salesTax: +salesTax,
+            shopType,
+            cuisines: restaurantCuisines,
+            businessCategories: restaurantCategories.map(item => item._id),
+            city,
+            salesPersonName,
+            responsiblePersonName,
+            contactNumber,
+            isVisible
+          }
+        }
+      })
+    }
+    if (image) {
+      console.log({ image })
+      const restaurantImage = await uploadFile({
+        variables: { id: restaurantId, file: image }
+      })
+      console.log('File uploaded:', restaurantImage.data)
+    }
+    if (logo) {
+      console.log({ logo })
+      const restaurantLogo = await uploadRestaurantLogo({
+        variables: { id: restaurantId, file: logo }
+      })
+      console.log('Logo uploaded:', restaurantLogo.data)
+    }
+  }
+
+  const handleCategoryChange = e => {
+    setCategory(e.target.value)
+  }
+
+  const foundBusinessCategory = singleItem => {
+    const foundItem = restaurantCategories?.find(
+      item => item._id === singleItem
+    )
+    if (foundItem) {
+      return true
+    }
+    return false
+  }
+
   const classes = useStyles()
   const globalClasses = useGlobalStyles()
+
   return (
     <>
       <Header />
@@ -515,16 +682,117 @@ const VendorProfile = () => {
                     </Box>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Dropdown
-                      title={t('Shop Category')}
-                      values={Object.values(SHOP_TYPE)}
-                      defaultValue={
-                        data.restaurant.shopType || SHOP_TYPE.RESTAURANT
-                      }
-                      id={'shop-type'}
-                      name={'shopType'}
-                      displayEmpty={true}
-                    />
+                    <Box>
+                      <Typography className={classes.labelText}>
+                        {t('sales_person')}
+                      </Typography>
+                      <Input
+                        style={{ marginTop: -1 }}
+                        placeholder={t('sales_person')}
+                        type="text"
+                        disableUnderline
+                        name="salesPersonName"
+                        value={salesPersonName}
+                        onChange={e => setSalesPersonName(e.target.value)}
+                        className={[globalClasses.input]}
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography className={classes.labelText}>
+                        {t('responsiblePersonName')}
+                      </Typography>
+                      <Input
+                        style={{ marginTop: -1 }}
+                        name="responsiblePersonName"
+                        value={responsiblePersonName}
+                        onChange={e => setResponsiblePersonName(e.target.value)}
+                        placeholder={t('responsiblePersonName')}
+                        type="text"
+                        disableUnderline
+                        className={[globalClasses.input]}
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography className={classes.labelText}>
+                        {t('contactNumber')}
+                      </Typography>
+                      <Input
+                        style={{ marginTop: -1 }}
+                        name="contactNumber"
+                        value={contactNumber}
+                        onChange={e => setContactNumber(e.target.value)}
+                        placeholder={t('contactNumber')}
+                        type="text"
+                        disableUnderline
+                        className={[globalClasses.input]}
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography className={classes.labelText}>
+                      {t('Select City')}
+                    </Typography>
+                    <Select
+                      id="input-city"
+                      name="input-city"
+                      defaultValue={data?.restaurant?.city?._id || ''}
+                      value={selectedCity || data?.restaurant?.city?._id || ''}
+                      onChange={e => setSelectedCity(e.target.value)}
+                      displayEmpty
+                      inputProps={{ 'aria-label': 'Without label' }}
+                      className={[globalClasses.input]}>
+                      {!selectedCity && !data?.restaurant.city?._id && (
+                        <MenuItem value="" style={{ color: 'black' }}>
+                          {t('Select City')}
+                        </MenuItem>
+                      )}
+
+                      {cities?.map(city => (
+                        <MenuItem
+                          value={city._id}
+                          key={city._id}
+                          style={{ color: 'black' }}>
+                          {city.title}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {loadingCategories && <Typography>Loading...</Typography>}
+                    {errorCategories && (
+                      <Typography>Error fetching categories</Typography>
+                    )}
+                    {shopCategories?.length && !loadingCategories ? (
+                      <Box>
+                        <Typography className={classes.labelText}>
+                          {t('Shop Category')}
+                        </Typography>
+                        <Select
+                          style={{ margin: '0 0 0 0', padding: '0px 0px' }}
+                          defaultValue={
+                            data?.restaurant?.shopCategory?._id
+                              ? data?.restaurant.shopCategory._id
+                              : category
+                          }
+                          className={[globalClasses.input]}
+                          onChange={handleCategoryChange}>
+                          {shopCategories?.map(item => (
+                            <MenuItem
+                              value={item._id}
+                              key={item._id}
+                              style={{ color: 'black' }}>
+                              {item.title}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </Box>
+                    ) : (
+                      <Typography>Add shop categories</Typography>
+                    )}
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Box>
@@ -560,6 +828,71 @@ const VendorProfile = () => {
                       </Select>
                     </Box>
                   </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography className={classes.labelText}>
+                        {t('Visibility')}
+                      </Typography>
+                      <Box
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-start',
+                          marginInlineStart: 20
+                        }}>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={isVisible}
+                              onChange={e => setIsVisible(e.target.checked)}
+                              color="primary"
+                            />
+                          }
+                          label="Restaurant Visible"
+                        />
+                      </Box>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box>
+                      <Typography className={classes.labelText}>
+                        {t('business_categories')}
+                      </Typography>
+                      <Select
+                        multiple
+                        value={restaurantCategories}
+                        defaultChecked={data?.restaurant?.businessCategories}
+                        defaultValue={data?.restaurant?.businessCategories}
+                        onChange={handleBusinessCategoryChange}
+                        input={<OutlinedInput />}
+                        renderValue={selected =>
+                          selected.map(item => item.name).join(', ')
+                        }
+                        isOptionEqualToValue={(option, value) =>
+                          option._id === value._id
+                        }
+                        MenuProps={MenuProps}
+                        className={[globalClasses.input]}
+                        style={{ margin: '0 0 0 -20px', padding: '0px 0px' }}>
+                        {businessCategories?.map(item => (
+                          <MenuItem
+                            key={item._id}
+                            value={item}
+                            style={{
+                              color: '#000000',
+                              textTransform: 'capitalize'
+                            }}>
+                            <Checkbox
+                              checked={restaurantCategories.some(
+                                cat => cat._id === item._id
+                              )}
+                            />
+                            <ListItemText primary={item.name} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </Box>
+                  </Grid>
                 </Grid>
 
                 <Grid container spacing={2}>
@@ -586,8 +919,8 @@ const VendorProfile = () => {
                         id="file-upload"
                         type="file"
                         accept="image/*"
-                        onChange={event => {
-                          handleFileSelect(event, 'image')
+                        onChange={e => {
+                          handleFileSelect(e, 'image')
                         }}
                       />
                     </Box>
@@ -613,8 +946,8 @@ const VendorProfile = () => {
                         id="logo-upload"
                         type="file"
                         accept="image/*"
-                        onChange={event => {
-                          handleFileSelect(event, 'logo')
+                        onChange={e => {
+                          handleLogoSelect(e, 'logo')
                         }}
                       />
                     </Box>
@@ -625,47 +958,7 @@ const VendorProfile = () => {
                   <Button
                     className={globalClasses.button}
                     disabled={loading}
-                    onClick={async e => {
-                      e.preventDefault()
-                      if (onSubmitValidaiton()) {
-                        const imgUpload = await uploadImageToCloudinary(imgUrl)
-                        const logoUpload = await uploadImageToCloudinary(
-                          logoUrl
-                        )
-                        const form = formRef.current
-                        const name = form.name.value
-                        const address = form.address.value
-                        const prefix = form.prefix.value // can we not update this?
-                        const deliveryTime = form.deliveryTime.value
-                        const minimumOrder = form.minimumOrder.value
-                        const username = form.username.value
-                        const password = form.password.value
-                        const salesTax = form.salesTax.value
-                        const shopType = form.shopType.value
-                        mutate({
-                          variables: {
-                            restaurantInput: {
-                              _id: restaurantId,
-                              name,
-                              address,
-                              image:
-                                imgUpload ||
-                                data.restaurant.image ||
-                                'https://enatega.com/wp-content/uploads/2023/11/man-suit-having-breakfast-kitchen-side-view.webp',
-                              logo: logoUpload || defaultLogo,
-                              orderPrefix: prefix,
-                              deliveryTime: Number(deliveryTime),
-                              minimumOrder: Number(minimumOrder),
-                              username: username,
-                              password: password,
-                              salesTax: +salesTax,
-                              shopType,
-                              cuisines: restaurantCuisines
-                            }
-                          }
-                        })
-                      }
-                    }}>
+                    onClick={handleSubmit}>
                     {t('Save')}
                   </Button>
                 </Box>

@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation, gql } from '@apollo/client'
 import { withTranslation } from 'react-i18next'
 // core components
 import Header from '../components/Headers/Header'
-import { getRestaurantDetail, deleteFood } from '../apollo'
+import { deleteFood, getFoodListByRestaurant } from '../apollo'
 import FoodComponent from '../components/Food/Food'
 import CustomLoader from '../components/Loader/CustomLoader'
 import DataTable from 'react-data-table-component'
@@ -28,23 +28,27 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import TableHeader from '../components/TableHeader'
 import Alert from '../components/Alert'
 import ConfigurableValues from '../config/constants'
+import { Fragment } from 'react'
+import MenuFileUpload from '../components/MenuFileUpload'
+import foodPlaceholder from '../assets/food_placeholder.jpeg'
 
 const GET_FOODS = gql`
-  ${getRestaurantDetail}
+  ${getFoodListByRestaurant}
 `
 const DELETE_FOOD = gql`
   ${deleteFood}
 `
+
 const Food = props => {
   const { t } = props
   const { PAID_VERSION } = ConfigurableValues()
   const [editModal, setEditModal] = useState(false)
   const [food, setFood] = useState(null)
+  const [foodList, setFoodList] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const onChangeSearch = e => setSearchQuery(e.target.value)
   const restaurantId = localStorage.getItem('restaurantId')
-
   const [mutate, { loading }] = useMutation(DELETE_FOOD, {
     refetchQueries: [{ query: GET_FOODS, variables: { id: restaurantId } }]
   })
@@ -56,6 +60,9 @@ const Food = props => {
       }
     }
   )
+
+  console.log({ data })
+
   const toggleModal = food => {
     setEditModal(!editModal)
     setFood(food)
@@ -97,7 +104,7 @@ const Food = props => {
       name: t('Category'),
       sortable: true,
       selector: 'category.category',
-      cell: row => <>{row.category}</>
+      cell: row => <>{row.category?.title || 'N/A'}</>
     },
     {
       name: t('Image'),
@@ -106,10 +113,7 @@ const Food = props => {
           <img
             className="img-responsive"
             style={{ width: 30, height: 30, borderRadius: 15 }}
-            src={
-              row.image ||
-              'https://enatega.com/wp-content/uploads/2023/11/man-suit-having-breakfast-kitchen-side-view.webp'
-            }
+            src={row.image || foodPlaceholder}
             alt={row.image ? 'img menu' : 'Default Image'}
           />
         </>
@@ -117,127 +121,36 @@ const Food = props => {
     },
     {
       name: t('Action'),
-      cell: row => <>{actionButtons(row)}</>
+      cell: row => (
+        <>
+          {ActionButtons(
+            row,
+            toggleModal,
+            t,
+            PAID_VERSION,
+            setIsOpen,
+            mutate,
+            restaurantId
+          )}
+        </>
+      )
     }
   ]
-  const actionButtons = row => {
-    const [anchorEl, setAnchorEl] = React.useState(null)
-    const open = Boolean(anchorEl)
-    const handleClick = event => {
-      setAnchorEl(event.currentTarget)
-    }
-    const handleClose = () => {
-      setAnchorEl(null)
-    }
-    return (
-      <>
-        <div>
-          <IconButton
-            aria-label="more"
-            id="long-button"
-            aria-haspopup="true"
-            onClick={handleClick}>
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-          <Paper>
-            <Menu
-              id="long-menu"
-              MenuListProps={{
-                'aria-labelledby': 'long-button'
-              }}
-              anchorEl={anchorEl}
-              open={open}
-              onClose={handleClose}>
-              <MenuItem
-                onClick={e => {
-                  e.preventDefault()
-                  if (PAID_VERSION) toggleModal(row)
-                  else {
-                    setIsOpen(true)
-                    setTimeout(() => {
-                      setIsOpen(false)
-                    }, 5000)
-                  }
-                }}
-                style={{ height: 25 }}>
-                <ListItemIcon>
-                  <EditIcon fontSize="small" style={{ color: 'green' }} />
-                </ListItemIcon>
-                <Typography color="green">{t('Edit')}</Typography>
-              </MenuItem>
-              <MenuItem
-                onClick={e => {
-                  e.preventDefault()
-                  if (PAID_VERSION)
-                    mutate({
-                      variables: {
-                        id: row._id,
-                        restaurant: restaurantId,
-                        categoryId: row.categoryId
-                      }
-                    })
-                  else {
-                    setIsOpen(true)
-                    setTimeout(() => {
-                      setIsOpen(false)
-                    }, 5000)
-                  }
-                }}
-                style={{ height: 25 }}>
-                <ListItemIcon>
-                  <DeleteIcon fontSize="small" style={{ color: 'red' }} />
-                </ListItemIcon>
-                <Typography color="red">{t('Delete')}</Typography>
-              </MenuItem>
-            </Menu>
-          </Paper>
-        </div>
-      </>
-    )
-  }
 
-  const foodsList = categories => {
-    const list = []
-    categories &&
-      categories.forEach(category => {
-        if (category.foods && category.foods.length) {
-          return category.foods.map(item => {
-            list.push({
-              ...item,
-              category: category.title,
-              categoryId: category._id,
-              ...category,
-              _id: item._id,
-              title: item.title
-            })
+  // const updateFoodList = item => {
+  //   setFoodList([...foodList, item])
+  // }
 
-            return {
-              ...item,
-              category: category.title,
-              categoryId: category._id,
-              ...category,
-              _id: item._id,
-              title: item.title
-            }
-          })
-        }
-      })
-    return list
-  }
   const regex =
     searchQuery.length > 2 ? new RegExp(searchQuery.toLowerCase(), 'g') : null
-
-    const filteredFoods = foodsList(data && data.restaurant.categories)
-    .filter(food => !(food.category === "Default Category" || food.title === "Default Food"))
-
   const filtered =
     searchQuery.length < 3
-      ? filteredFoods
-      : filteredFoods.filter(food => {
+      ? data && data.foodListByRestaurant
+      : data &&
+        data.foodListByRestaurant.filter(option => {
           return (
-            food.title.toLowerCase().search(regex) > -1 ||
-            food.description.toLowerCase().search(regex) > -1 ||
-            food.category.toLowerCase().search(regex) > -1
+            option.title.toLowerCase().search(regex) > -1 ||
+            option.description.toLowerCase().search(regex) > -1
           )
         })
   const globalClasses = useGlobalStyles()
@@ -250,33 +163,38 @@ const Food = props => {
         <Alert message={t('AvailableAfterPurchasing')} severity="warning" />
       )}
       <Container className={globalClasses.flex} fluid>
-        <FoodComponent />
+        <MenuFileUpload />
+        <FoodComponent onClose={closeEditModal} />
         {errorQuery && <span>`Error! ${errorQuery.message}`</span>}
         {loadingQuery ? (
           <CustomLoader />
         ) : (
-          <DataTable
-            subHeader={true}
-            subHeaderComponent={
-              <SearchBar
-                value={searchQuery}
-                onChange={onChangeSearch}
-                onClick={() => refetch()}
+          <Fragment>
+            {data && data?.foodListByRestaurant ? (
+              <DataTable
+                subHeader={true}
+                subHeaderComponent={
+                  <SearchBar
+                    value={searchQuery}
+                    onChange={onChangeSearch}
+                    onClick={() => refetch()}
+                  />
+                }
+                title={<TableHeader title={t('Food')} />}
+                columns={columns}
+                data={data && data.foodListByRestaurant?.length ? filtered : []}
+                pagination
+                progressPending={loading}
+                progressComponent={<CustomLoader />}
+                sortFunction={customSort}
+                defaultSortField="title"
+                customStyles={customStyles}
+                selectableRows
+                paginationIconLastPage=""
+                paginationIconFirstPage=""
               />
-            }
-            title={<TableHeader title={t('Food')} />}
-            columns={columns}
-            data={data && data.restaurant ? filtered : {}}
-            pagination
-            progressPending={loading}
-            progressComponent={<CustomLoader />}
-            sortFunction={customSort}
-            defaultSortField="title"
-            customStyles={customStyles}
-            selectableRows
-            paginationIconLastPage=""
-            paginationIconFirstPage=""
-          />
+            ) : null}
+          </Fragment>
         )}
         <Modal
           open={editModal}
@@ -287,9 +205,93 @@ const Food = props => {
             marginLeft: '13%',
             overflowY: 'auto'
           }}>
-          <FoodComponent food={food} onClose={closeEditModal} />
+          <FoodComponent food={food} onClose={closeEditModal} update={true} />
         </Modal>
       </Container>
+    </>
+  )
+}
+
+const ActionButtons = (
+  row,
+  toggleModal,
+  t,
+  PAID_VERSION,
+  setIsOpen,
+  mutate,
+  restaurantId
+) => {
+  const [anchorEl, setAnchorEl] = useState(null)
+  const open = Boolean(anchorEl)
+  const handleClick = event => {
+    setAnchorEl(event.currentTarget)
+  }
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+  return (
+    <>
+      <div>
+        <IconButton
+          aria-label="more"
+          id="long-button"
+          aria-haspopup="true"
+          onClick={handleClick}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+        <Paper>
+          <Menu
+            id="long-menu"
+            MenuListProps={{
+              'aria-labelledby': 'long-button'
+            }}
+            anchorEl={anchorEl}
+            open={open}
+            onClose={handleClose}>
+            <MenuItem
+              onClick={e => {
+                e.preventDefault()
+                if (PAID_VERSION) toggleModal(row)
+                else {
+                  setIsOpen(true)
+                  setTimeout(() => {
+                    setIsOpen(false)
+                  }, 5000)
+                }
+              }}
+              style={{ height: 25 }}>
+              <ListItemIcon>
+                <EditIcon fontSize="small" style={{ color: 'green' }} />
+              </ListItemIcon>
+              <Typography color="green">{t('Edit')}</Typography>
+            </MenuItem>
+            <MenuItem
+              onClick={e => {
+                e.preventDefault()
+                if (PAID_VERSION)
+                  mutate({
+                    variables: {
+                      id: row._id,
+                      restaurant: restaurantId,
+                      categoryId: row.categoryId
+                    }
+                  })
+                else {
+                  setIsOpen(true)
+                  setTimeout(() => {
+                    setIsOpen(false)
+                  }, 5000)
+                }
+              }}
+              style={{ height: 25 }}>
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" style={{ color: 'red' }} />
+              </ListItemIcon>
+              <Typography color="red">{t('Delete')}</Typography>
+            </MenuItem>
+          </Menu>
+        </Paper>
+      </div>
     </>
   )
 }

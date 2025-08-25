@@ -13,9 +13,10 @@ import {
 import MenuIcon from '@mui/icons-material/Menu'
 import routes from '../../routes'
 import useStyles from './styles'
-import { ReactComponent as Logo } from '../../assets/svg/logo.svg'
+// import { ReactComponent as Logo } from '../../assets/svg/logo.svg'
 import { useLocation } from 'react-router-dom'
-import { useTranslation, withTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
+import Logo from '../../assets/logo.png'
 
 const drawerWidth = 240
 function AdminSidebar(props) {
@@ -34,19 +35,26 @@ function AdminSidebar(props) {
     // <Box className={classes.sidebarContainer}>
     <Box className={classes.sidebarBox}>
       <Toolbar className={[classes.rowDisplay, classes.logo]}>
-        <Logo fontSize="small" />
+        {/* <Logo fontSize="small" /> */}
+        <Box
+          style={{
+            width: 300,
+            height: 100
+          }}>
+          <img src={Logo} style={{ width: '100%' }} />
+        </Box>
       </Toolbar>
       <Box className={classes.sidebarList}>
         {routes.map((prop, key) => {
-        
+          console.log({ name: prop.name })
           return prop.appearInSidebar && prop.admin ? (
-            <>
+            <React.Fragment key={key}>
               {key === 1 ? (
                 <Typography className={classes.headingText} variant="h3">
                   {t('GENERAL')}
                 </Typography>
               ) : null}
-              {key === 6 ? (
+              {key === 8 ? (
                 <Typography className={classes.headingText} variant="h3">
                   {t('MANAGEMENT')}
                 </Typography>
@@ -76,7 +84,7 @@ function AdminSidebar(props) {
                   {t(prop.name)}
                 </Typography>
               </Link>
-            </>
+            </React.Fragment>
           ) : null
         })}
       </Box>
@@ -150,4 +158,4 @@ function AdminSidebar(props) {
   )
 }
 
-export default withTranslation()(AdminSidebar)
+export default AdminSidebar

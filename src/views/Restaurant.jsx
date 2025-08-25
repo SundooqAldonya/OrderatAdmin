@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import RestaurantCard from '../components/Restaurant/Card'
 import { Link } from 'react-router-dom'
 import { useQuery, gql } from '@apollo/client'
@@ -8,6 +8,7 @@ import { Box, Button, Modal, Container, Grid, useTheme } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import useGlobalStyles from '../utils/globalStyles'
 import { withTranslation } from 'react-i18next'
+import { isAuthenticated } from '../helpers/user'
 
 const RESTAURANT_BY_OWNER = gql`
   ${restaurantByOwner}
@@ -18,6 +19,7 @@ const Restaurant = props => {
   const [owner, setOwner] = useState()
   const [isModalVisible, setIsModalVisible] = useState(false)
   const vendorId = localStorage.getItem('vendorId')
+  const user = isAuthenticated()
   const toggleModal = () => {
     setIsModalVisible(prevState => !prevState)
   }
@@ -30,9 +32,16 @@ const Restaurant = props => {
       variables: { id: vendorId }
     }
   )
+
+  console.log({ data })
+
+  useEffect(() => {
+    setOwner(localStorage.getItem('vendorId'))
+  }, [])
+
   const links =
     data &&
-    data.restaurantByOwner.restaurants.map((rest, index) => {
+    data.restaurantByOwner.map((rest, index) => {
       return (
         <Grid key={index} item xs={12} sm={6} md={4} lg={3}>
           <Link
@@ -73,22 +82,24 @@ const Restaurant = props => {
             </Grid>
           )}
         </Box>
-        <Box mt={6} className={globalClasses.flexRow}>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setOwner(data.restaurantByOwner._id)
-              toggleModal()
-            }}
-            style={{
-              backgroundColor: theme.palette.common.black,
-              color: theme.palette.warning.dark,
-              borderRadius: 10
-            }}
-            startIcon={<AddIcon fill={theme.palette.common.black} />}>
-            {t('AddNewRestaurant')}
-          </Button>
-        </Box>
+        {user?.userType === 'ADMIN' ? (
+          <Box mt={6} className={globalClasses.flexRow}>
+            <Button
+              variant="contained"
+              onClick={() => {
+                // setOwner(data.restaurantByOwner._id)
+                toggleModal()
+              }}
+              style={{
+                backgroundColor: theme.palette.common.black,
+                color: theme.palette.warning.dark,
+                borderRadius: 10
+              }}
+              startIcon={<AddIcon fill={theme.palette.common.black} />}>
+              {t('AddNewBusiness')}
+            </Button>
+          </Box>
+        ) : null}
         <Modal
           open={isModalVisible}
           style={{
@@ -96,7 +107,7 @@ const Restaurant = props => {
             marginLeft: '18%',
             overflowY: 'auto'
           }}>
-          <CreateRestaurant owner={owner} onClose = {toggleModal}/>
+          <CreateRestaurant owner={owner} onClose={toggleModal} />
         </Modal>
       </Container>
     </>

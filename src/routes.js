@@ -52,9 +52,29 @@ import { ReactComponent as PaymentIcon } from './assets/svg/payment.svg'
 import { ReactComponent as RatingIcon } from './assets/svg/rating.svg'
 import { ReactComponent as TimingIcon } from './assets/svg/timings.svg'
 import { ReactComponent as RestaurantSectionIcon } from './assets/svg/restSection.svg'
+import TravelExploreIcon from '@mui/icons-material/TravelExplore'
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter'
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
+import ConnectWithoutContactIcon from '@mui/icons-material/ConnectWithoutContact'
 import SuperAdminDashboard from './views/SuperAdminDashboard'
 import Cuisines from './views/Cuisines'
 import Banners from './views/Banners'
+import Cities from './views/Cities'
+import Areas from './views/Areas'
+import Businesses from './views/Businesses'
+import ShopCategories from './views/ShopCategories'
+import OrdersAdmin from './views/OrdersAdmin'
+import RidersRegistered from './views/RidersRegistered'
+import ElectricMopedIcon from '@mui/icons-material/ElectricMoped'
+import OrderDetailsPage from './views/OrderDetailsPage'
+import DeliveryPrices from './views/DeliveryPrices'
+import DeliveryZone from './views/DeliveryZone'
+import BusinessCategory from './views/BusinessCategory'
+import RidersMap from './views/RidersMap'
+import ContactUs from './views/Contactus'
+import NotificationsScreen from './views/NotificationsScreen'
+import OtlobMandoob from './views/OtlobMandoob'
+import PrepaidDeliveryPackages from './views/PrepaidDeliveryPackages'
 
 var routes = [
   {
@@ -77,7 +97,7 @@ var routes = [
   },
   {
     path: '/restaurants',
-    name: 'Restaurants',
+    name: 'Businesses',
     icon: RestaurantIcon,
     component: RestaurantList,
     layout: '/super_admin',
@@ -86,7 +106,7 @@ var routes = [
   },
   {
     path: '/sections',
-    name: 'Restaurant Sections',
+    name: 'Business Sections',
     icon: RestaurantSectionIcon,
     component: Sections,
     layout: '/super_admin',
@@ -112,10 +132,55 @@ var routes = [
     admin: true
   },
   {
+    path: '/riders-map',
+    name: 'Riders Map',
+    icon: TravelExploreIcon,
+    component: RidersMap,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/otlob-mandoob',
+    name: 'Otlob Mandoob',
+    icon: TravelExploreIcon,
+    component: OtlobMandoob,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    icon: NotificationsActiveIcon,
+    component: NotificationsScreen,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
     path: '/configuration',
     name: 'Configuration',
     icon: ConfigurationIcon,
     component: Configuration,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/contact-us',
+    name: 'Contact us',
+    icon: CouponsIcon,
+    component: ContactUs,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/delivery-packages',
+    name: 'Delivery Packages',
+    icon: ConnectWithoutContactIcon,
+    component: PrepaidDeliveryPackages,
     layout: '/super_admin',
     appearInSidebar: true,
     admin: true
@@ -139,6 +204,15 @@ var routes = [
     admin: true
   },
   {
+    path: '/businessCategory',
+    name: 'business_categories',
+    icon: CouponsIcon,
+    component: BusinessCategory,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
     path: '/banner',
     name: 'Banners',
     icon: CouponsIcon,
@@ -157,6 +231,61 @@ var routes = [
     admin: true
   },
   {
+    path: '/cities',
+    name: 'Cities',
+    icon: ZonesIcon,
+    component: Cities,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/delivery-zones',
+    name: 'Delivery Zones',
+    icon: ZonesIcon,
+    component: DeliveryZone,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/areas',
+    name: 'Areas',
+    icon: ZonesIcon,
+    component: Areas,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/shop-categories',
+    name: 'Shop Categories',
+    icon: ZonesIcon,
+    component: ShopCategories,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/businesses',
+    name: 'Businesses',
+    icon: BusinessCenterIcon,
+    component: Businesses,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/riders-registered',
+    name: 'Riders Registered',
+    icon: ElectricMopedIcon,
+    component: RidersRegistered,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+
+  {
     path: '/zones',
     name: 'Zone',
     icon: ZonesIcon,
@@ -172,6 +301,24 @@ var routes = [
     component: Dispatch,
     layout: '/super_admin',
     appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/orders',
+    name: 'Orders',
+    icon: DeliveryIcon,
+    component: OrdersAdmin,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
+  },
+  {
+    path: '/order-details/:id',
+    name: 'Orders Details',
+    icon: DeliveryIcon,
+    component: OrderDetailsPage,
+    layout: '/admin',
+    appearInSidebar: false,
     admin: true
   },
   {
@@ -292,15 +439,15 @@ var routes = [
     appearInSidebar: true,
     admin: false
   },
-  {
-    path: '/payment',
-    name: 'Payment',
-    icon: PaymentIcon,
-    component: Payment,
-    layout: '/admin',
-    appearInSidebar: true,
-    admin: false
-  },
+  // {
+  //   path: '/payment',
+  //   name: 'Payment',
+  //   icon: PaymentIcon,
+  //   component: Payment,
+  //   layout: '/admin',
+  //   appearInSidebar: true,
+  //   admin: false
+  // },
   {
     path: '/deliverybounds',
     name: 'Location',
@@ -309,6 +456,15 @@ var routes = [
     layout: '/admin',
     appearInSidebar: true,
     admin: false
+  },
+  {
+    path: '/deliveryPrices',
+    name: 'Delivery Prices',
+    icon: LocationIcon,
+    component: DeliveryPrices,
+    layout: '/super_admin',
+    appearInSidebar: true,
+    admin: true
   },
 
   {
@@ -327,15 +483,15 @@ var routes = [
     layout: '/auth',
     appearInSidebar: false
   },
-  {
-    path: '/dispatch/:id',
-    name: 'Dispatch',
-    icon: DeliveryIcon,
-    component: DispatchRestaurant,
-    layout: '/admin',
-    appearInSidebar: true,
-    admin: false
-  },
+  // {
+  //   path: '/dispatch/:id',
+  //   name: 'Dispatch',
+  //   icon: DeliveryIcon,
+  //   component: DispatchRestaurant,
+  //   layout: '/admin',
+  //   appearInSidebar: true,
+  //   admin: false
+  // },
   {
     path: '/vendors',
     name: 'Back to Admin',

@@ -9,7 +9,7 @@ import { useQuery, gql } from '@apollo/client'
 import SearchBar from '../TableHeader/SearchBar'
 import { customStyles } from '../../utils/tableCustomStyles'
 import TableHeader from '../TableHeader'
-import { useTheme } from '@mui/material'
+import { Alert, useTheme } from '@mui/material'
 import Button from '@mui/material/Button'
 import Grid from '@mui/material/Grid'
 import TextField from '@mui/material/TextField'
@@ -19,6 +19,7 @@ import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import { Box } from '@mui/system'
 import AddOrder from './AddOrder'
+import AddNewOrder from './AddNewOrder'
 
 const ORDERCOUNT = gql`
   ${orderCount}
@@ -29,23 +30,24 @@ const ORDER_PLACED = gql`
 
 const OrdersData = props => {
   const theme = useTheme()
-  const { t } = props
-  const { selected, updateSelected } = props
+  const { t, refetchOrders, isAdminPage } = props
   const [searchQuery, setSearchQuery] = useState('')
-  const [isOrderFormVisible, setIsOrderFormVisible] = useState(false) // Track visibility of the form
+  const [isOrderFormVisible, setIsOrderFormVisible] = useState(false)
+  const [newFormVisible, setNewFormVisible] = useState(false)
   const [orderDetails, setOrderDetails] = useState({
     items: '',
     quantity: 1,
     paymentMethod: '',
     address: ''
   })
+  const [success, setSuccess] = useState(null)
 
   const onChangeSearch = e => setSearchQuery(e.target.value)
-  
+
   const handleOpenOrderForm = () => setIsOrderFormVisible(true)
   const handleCloseOrderForm = () => setIsOrderFormVisible(false)
 
-  const handleOrderChange = (e) => {
+  const handleOrderChange = e => {
     const { name, value } = e.target
     setOrderDetails(prevState => ({
       ...prevState,
@@ -63,11 +65,13 @@ const OrdersData = props => {
     return items
       .map(
         item =>
-          `${item.quantity}x${item.title}${item.variation.title ? `(${item.variation.title})` : ''}`
+          `${item.quantity}x${item.title}${
+            item.variation.title ? `(${item.variation.title})` : ''
+          }`
       )
       .join('\n')
   }
-  
+
   const restaurantId = localStorage.getItem('restaurantId')
 
   const { data, loading: loadingQuery } = useQuery(ORDERCOUNT, {
@@ -105,32 +109,42 @@ const OrdersData = props => {
       sortable: true,
       selector: 'orderId'
     },
+    // {
+    //   name: t('Items'),
+    //   cell: row => <>{getItems(row.items)}</>
+    // },
     {
-      name: t('Items'),
-      cell: row => <>{getItems(row.items)}</>
+      name: t('name'),
+      cell: row => <>{row.user && row.user.name ? row.user.name : 'N/A'}</>
+    },
+    {
+      name: t('phone'),
+      cell: row => <>{row.user && row.user.phone ? row.user.phone : 'N/A'}</>
     },
     {
       name: t('Payment'),
       selector: 'paymentMethod',
-      sortable: true
+      sortable: true,
+      cell: row => <>{t(row.paymentMethod)}</>
     },
     {
       name: t('Status'),
       selector: 'orderStatus',
-      sortable: true
+      sortable: true,
+      cell: row => <>{t(row.orderStatus)}</>
     },
     {
       name: t('Datetime'),
       cell: row => (
         <>{new Date(row.createdAt).toLocaleString().replace(/ /g, '\n')}</>
       )
-    },
-    {
-      name: t('Address'),
-      cell: row => (
-        <>{transformToNewline(row.deliveryAddress.deliveryAddress, 3)}</>
-      )
     }
+    // {
+    //   name: t('Address'),
+    //   cell: row => (
+    //     <>{transformToNewline(row?.deliveryAddress?.deliveryAddress, 3)}</>
+    //   )
+    // }
   ]
 
   const conditionalRowStyles = [
@@ -185,26 +199,46 @@ const OrdersData = props => {
   return (
     <>
       {/* Add Order Button on the Right Side */}
-      <Grid container spacing={2} style={{ marginBottom: '20px' }}>
-        <Grid item xs={9}></Grid>  {/* Empty space on the left to push the button to the right */}
-        <Grid item xs={3}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleOpenOrderForm}
-            fullWidth
-          >
-            {t('Addorder')}
-          </Button>
+      {!isAdminPage ? (
+        <Grid container spacing={2} style={{ marginBottom: '20px' }}>
+          <Grid item xs={9}></Grid>{' '}
+          <Grid item xs={3}>
+            <Button
+              variant="contained"
+              color="primary"
+              // onClick={handleOpenOrderForm}
+              onClick={() => setNewFormVisible(true)}
+              fullWidth>
+              {t('Addorder')}
+            </Button>
+          </Grid>
         </Grid>
-      </Grid>
+      ) : null}
+
+      {success && (
+        <Alert
+          severity="success"
+          sx={{
+            mb: 2,
+            color: 'white', // Text color
+            backgroundColor: '#32620e', // Background color
+            fontWeight: 'bold',
+            '& .MuiAlert-icon': {
+              color: 'white' // Icon color
+            }
+          }}>
+          {success}
+        </Alert>
+      )}
 
       {/* Order Form (Appears Below the Table) */}
-      {isOrderFormVisible && (
-        <AddOrder
-          t={t}
-          onSubmit={handleSubmitOrder}
-          onCancel={handleCloseOrderForm}
+      {/* {isOrderFormVisible && <AddOrder t={t} refetchOrders={refetchOrders} />} */}
+      {newFormVisible && (
+        <AddNewOrder
+          refetchOrders={refetchOrders}
+          setNewFormVisible={setNewFormVisible}
+          success={success}
+          setSuccess={setSuccess}
         />
       )}
 
@@ -212,10 +246,9 @@ const OrdersData = props => {
       <div
         className={`table-container ${isOrderFormVisible ? 'slide-up' : ''}`}
         style={{
-            transition: 'transform 0.3s ease-in-out',
-            marginTop: isOrderFormVisible ? '20px' : '0px',  // Adds space above table when form is visible
-        }}
-        >
+          transition: 'transform 0.3s ease-in-out',
+          marginTop: isOrderFormVisible ? '20px' : '0px' // Adds space above table when form is visible
+        }}>
         <DataTable
           title={<TableHeader title={t('Orders')} />}
           columns={columns}

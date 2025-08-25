@@ -19,13 +19,14 @@ import {
   useTheme
 } from '@mui/material'
 import { useTranslation, withTranslation } from 'react-i18next'
-
+import { isAuthenticated } from '../helpers/user'
+import { Fragment } from 'react'
 
 const UPDATE_DELIVERY_BOUNDS_AND_LOCATION = gql`
-${updateDeliveryBoundsAndLocation}
+  ${updateDeliveryBoundsAndLocation}
 `
-console.log('updateDeliveryBoundsAndLocation');
-console.log(UPDATE_DELIVERY_BOUNDS_AND_LOCATION);
+console.log('updateDeliveryBoundsAndLocation')
+console.log(UPDATE_DELIVERY_BOUNDS_AND_LOCATION)
 
 const GET_RESTAURANT_PROFILE = gql`
   ${getRestaurantProfile}
@@ -39,26 +40,28 @@ function DeliveryBoundsAndLocation() {
   const [drawBoundsOrMarker, setDrawBoundsOrMarker] = useState('marker') // polygon
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const user = isAuthenticated() ? isAuthenticated() : null
+  console.log({ user })
 
-  const [center, setCenter] = useState({ lat: 33.684422, lng: 73.047882 })
-  const [marker, setMarker] = useState({ lat: 33.684422, lng: 73.047882 })
+  const [center, setCenter] = useState({ lat: 31.1107, lng: 30.9388 })
+  const [marker, setMarker] = useState({ lat: 31.1107, lng: 30.9388 })
   const [path, setPath] = useState([
-    {
-      lat: 33.6981335731709,
-      lng: 73.036895671875
-    },
-    {
-      lat: 33.684779099960515,
-      lng: 73.04650870898438
-    },
-    {
-      lat: 33.693206228391965,
-      lng: 73.06461898425293
-    },
-    {
-      lat: 33.706880699271096,
-      lng: 73.05410472491455
-    }
+    // {
+    //   lat: 33.6981335731709,
+    //   lng: 73.036895671875
+    // },
+    // {
+    //   lat: 33.684779099960515,
+    //   lng: 73.04650870898438
+    // },
+    // {
+    //   lat: 33.693206228391965,
+    //   lng: 73.06461898425293
+    // },
+    // {
+    //   lat: 33.706880699271096,
+    //   lng: 73.05410472491455
+    // }
   ])
   const polygonRef = useRef()
   const listenersRef = useRef([])
@@ -76,9 +79,30 @@ function DeliveryBoundsAndLocation() {
     {
       update: updateCache,
       onError,
-      onCompleted
+      onCompleted: ({ result }) => {
+        const restaurant = result?.data || null
+        console.log({ restaurant })
+
+        if (restaurant) {
+          setCenter({
+            lat: +restaurant.location.coordinates[1],
+            lng: +restaurant.location.coordinates[0]
+          })
+          setMarker({
+            lat: +restaurant.location.coordinates[1],
+            lng: +restaurant.location.coordinates[0]
+          })
+          setPath(
+            restaurant.deliveryBounds
+              ? transformPolygon(restaurant.deliveryBounds.coordinates[0])
+              : path
+          )
+          setSuccessMessage(t('LocationUpdatedSuccessfully'))
+        }
+      }
     }
   )
+
   // Call setPath with new edited path
   const onEdit = useCallback(() => {
     if (polygonRef.current) {
@@ -146,7 +170,12 @@ function DeliveryBoundsAndLocation() {
   }
 
   function onCompleted({ restaurant }) {
-    if (restaurant) {
+    console.log({ restaurantOnCompleted: restaurant })
+    if (
+      restaurant &&
+      restaurant.location.coordinates[0] !== '0' &&
+      restaurant.location.coordinates[1] !== '0'
+    ) {
       setCenter({
         lat: +restaurant.location.coordinates[1],
         lng: +restaurant.location.coordinates[0]
@@ -163,8 +192,13 @@ function DeliveryBoundsAndLocation() {
     }
   }
 
-  function onError({ networkError, graphqlErrors }) {
-    setErrorMessage(t('UpdatingLocationError'))
+  function onError(error) {
+    console.log({ error })
+    const errorZone = error?.message?.includes('delivery zone')
+    if (errorZone) {
+      const errorMessage = error.message.split(': ').pop()
+      setErrorMessage(errorMessage)
+    }
     setTimeout(() => setErrorMessage(''), 5000) // Clear error message after 5 seconds
   }
 
@@ -179,9 +213,9 @@ function DeliveryBoundsAndLocation() {
       setTimeout(() => setErrorMessage(''), 5000) // Clear success message after 5 seconds
       return false
     }
-    setSuccessMessage(t('LocationUpdatedSuccessfully'))
+
     setTimeout(() => setSuccessMessage(''), 5000) // Clear success message after 5 seconds
-    setErrorMessage('')
+    // setErrorMessage('')
     return true
   }
 
@@ -191,6 +225,7 @@ function DeliveryBoundsAndLocation() {
       lng: mapMouseEvent.latLng.lng()
     })
   }
+
   const globalClasses = useGlobalStyles()
   const classes = useStyles()
 
@@ -219,7 +254,7 @@ function DeliveryBoundsAndLocation() {
               zoom={14}
               center={center}
               onClick={onClick}>
-              {
+              {path?.length ? (
                 <Polygon
                   editable
                   draggable
@@ -230,7 +265,7 @@ function DeliveryBoundsAndLocation() {
                   onRightClick={removePolygon}
                   paths={path}
                 />
-              }
+              ) : null}
               {marker && (
                 <Marker
                   position={marker}
@@ -241,89 +276,94 @@ function DeliveryBoundsAndLocation() {
               )}
             </GoogleMap>
           </Box>
-          <Box
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              padding: '0 30px'
-            }}>
-            <Button
-              style={{
-                color: theme.palette.warning.dark,
-                backgroundColor: theme.palette.common.black
-              }}
-              className={globalClasses.button}
-              onClick={() => toggleDrawingMode('polygon')}>
-              {t('DrawDeliveryBounds')}
-            </Button>
-            <Button
-              style={{
-                color: theme.palette.warning.dark,
-                backgroundColor: theme.palette.common.black
-              }}
-              className={globalClasses.button}
-              onClick={() => toggleDrawingMode('marker')}>
-              {t('SetRestaurantLocation')}
-            </Button>
-          </Box>
-          <Box
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              padding: '0 30px'
-            }}>
-            <Button
-              style={{
-                color: theme.palette.common.black,
-                backgroundColor: theme.palette.grey[300],
-                marginRight: 20
-              }}
-              className={globalClasses.button}
-              onClick={removePolygon}>
-              {t('RemoveDeliveryBounds')}
-            </Button>
-            <Button
-              style={{
-                color: theme.palette.common.black,
-                backgroundColor: theme.palette.grey[300]
-              }}
-              className={globalClasses.button}
-              onClick={removeMarker}>
-              {t('RemoveRestaurantLocation')}
-            </Button>
-          </Box>
-          <Box mt={5} mb={3}>
-            <Button
-              disabled={loading}
-              className={globalClasses.button}
-              onClick={() => {
-                const result = validate()
-                if (result) {
-                  const location = {
-                    latitude: marker.lat,
-                    longitude: marker.lng
-                  }
-                  const bounds = transformPath(path)
-                  let variables = {
-                    id: restaurantId,
-                    location,
-                    boundType: "Polygon",
-                    address: "nil",
-                    location, bounds
-                  };
-          
-                  variables = {
-                    ...variables,
-                    circleBounds: {
-                      radius: 0.0, // Convert kilometers to meters
-                    },
-                  };
-                  mutate({variables})
-                }
-              }}>
-              {t('Save')}
-            </Button>
-          </Box>
+          {user.userType === 'ADMIN' ? (
+            <Fragment>
+              <Box
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '0 30px'
+                }}>
+                <Button
+                  style={{
+                    color: theme.palette.warning.dark,
+                    backgroundColor: theme.palette.common.black
+                  }}
+                  className={globalClasses.button}
+                  onClick={() => toggleDrawingMode('polygon')}>
+                  {t('DrawDeliveryBounds')}
+                </Button>
+                <Button
+                  style={{
+                    color: theme.palette.warning.dark,
+                    backgroundColor: theme.palette.common.black
+                  }}
+                  className={globalClasses.button}
+                  onClick={() => toggleDrawingMode('marker')}>
+                  {t('SetRestaurantLocation')}
+                </Button>
+              </Box>
+              <Box
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  padding: '0 30px'
+                }}>
+                <Button
+                  style={{
+                    color: theme.palette.common.black,
+                    backgroundColor: theme.palette.grey[300],
+                    marginRight: 20
+                  }}
+                  className={globalClasses.button}
+                  onClick={removePolygon}>
+                  {t('RemoveDeliveryBounds')}
+                </Button>
+                <Button
+                  style={{
+                    color: theme.palette.common.black,
+                    backgroundColor: theme.palette.grey[300]
+                  }}
+                  className={globalClasses.button}
+                  onClick={removeMarker}>
+                  {t('RemoveRestaurantLocation')}
+                </Button>
+              </Box>
+              <Box mt={5} mb={3}>
+                <Button
+                  disabled={loading}
+                  className={globalClasses.button}
+                  onClick={() => {
+                    const result = validate()
+                    if (result) {
+                      const location = {
+                        latitude: marker.lat,
+                        longitude: marker.lng
+                      }
+                      const bounds = transformPath(path)
+                      let variables = {
+                        id: restaurantId,
+                        location,
+                        boundType: 'Polygon',
+                        address: 'nil',
+                        // location,
+                        bounds
+                      }
+
+                      variables = {
+                        ...variables,
+                        circleBounds: {
+                          radius: 0.0 // Convert kilometers to meters
+                        }
+                      }
+                      mutate({ variables })
+                    }
+                  }}>
+                  {t('Save')}
+                </Button>
+              </Box>
+            </Fragment>
+          ) : null}
           {successMessage && (
             <Alert
               className={globalClasses.alertSuccess}
