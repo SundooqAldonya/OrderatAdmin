@@ -692,6 +692,7 @@ export const restaurants = `query Restaurants{
     }
     createdAt
     isVisible
+    lastOnlineAt
   }
 }
 `
@@ -1385,6 +1386,15 @@ export const getPrepaidDeliveryPackages = gql`
       createdBy
       createdAt
       updatedAt
+    }
+  }
+`
+export const getDispatchOptions = gql`
+  query GetDispatchOptions {
+    getDispatchOptions {
+      delayDispatch
+      firstAttemptRiders
+      secondAttemptRiders
     }
   }
 `
