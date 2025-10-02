@@ -1224,6 +1224,9 @@ export const searchRestaurants = gql`
     searchRestaurants(search: $search) {
       _id
       name
+      location {
+        coordinates
+      }
     }
   }
 `
@@ -1396,6 +1399,16 @@ export const getDispatchOptions = gql`
       firstAttemptRiders
       secondAttemptRiders
       thirdAttemptRiders
+    }
+  }
+`
+
+export const searchRiders = gql`
+  query SearchRiders($search: String) {
+    searchRiders(search: $search) {
+      _id
+      name
+      username
     }
   }
 `
