@@ -20,6 +20,7 @@ import useGlobalStyles from '../../utils/globalStyles'
 import { gql, useLazyQuery, useMutation, useQuery } from '@apollo/client'
 import {
   adminCheckout,
+  adminOrderUpdate,
   getCities,
   getCityAreas,
   getDeliveryCalculation,
@@ -37,7 +38,7 @@ const GET_CITIES = gql`
   ${getCities}
 `
 
-const DispatchForm = ({ order }) => {
+const DispatchForm = ({ order, refetchOrders }) => {
   const { t } = useTranslation()
   const classes = useStyles()
   const globalClasses = useGlobalStyles()
@@ -51,8 +52,15 @@ const DispatchForm = ({ order }) => {
   const [selectedRestaurants, setSelectedRestaurants] = useState(null)
   const [selectedRiders, setSelectedRiders] = useState(null)
   const [times, setTimes] = useState([10, 20, 30, 40, 50, 60, 70, 80, 90])
+  const [cost, setCost] = useState(
+    order?.orderAmount && order?.deliveryCharges
+      ? order?.orderAmount - order?.deliveryCharges
+      : ''
+  )
   const [selectedTime, setSelectedTime] = useState(times[1])
   const [loaded, setLoaded] = useState(false)
+
+  console.log({ order })
 
   const {
     data: dataCities,
@@ -72,6 +80,28 @@ const DispatchForm = ({ order }) => {
   })
 
   const areas = data ? data.areasByCity : []
+
+  useEffect(() => {
+    if (order) {
+      fetchAreas({
+        variables: {
+          id: selectedCity || order?.restaurant?.city?._id || ''
+        }
+      })
+      setSelectedCity(order?.restaurant?.city?._id || '')
+      setSelectedRestaurants(order?.restaurant || null)
+      setSelectedRiders(order?.rider || null)
+      setSelectedTime(order?.preparationTime || times[1])
+    }
+  }, [order])
+
+  useEffect(() => {
+    // when areas arrive, validate current area id
+    if (areas?.length && order?.area) {
+      const found = areas.some(a => a._id === order.area)
+      setSelectedArea(found ? order.area : '')
+    }
+  }, [areas])
 
   const [
     fetchRestaurants,
@@ -176,33 +206,95 @@ const DispatchForm = ({ order }) => {
     setSelectedTime(e.target.value)
   }
 
-  const [mutateCreateOrder, { loading: mutateLoading }] = useMutation(
-    adminCheckout,
-    {
-      onCompleted: res => {
-        console.log({ res })
-      },
-      onError: err => {
-        console.log({ err })
-        // setMainError(err.message)
-        // setSuccess(null)
-      }
+  const [mutateCreateOrder] = useMutation(adminCheckout, {
+    onCompleted: res => {
+      console.log({ res })
+      setMainError(null)
+      setSuccess('Order created successfully')
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+      setSelectedArea('')
+      setSelectedCity('')
+      setCost('')
+      setSelectedRestaurants(null)
+      setSelectedRiders(null)
+      setSelectedTime(times[1])
+      setLoaded(false)
+      refetchOrders()
+    },
+    onError: err => {
+      console.log({ err })
+      // setMainError(err.message)
+      // setSuccess(null)
     }
-  )
+  })
+  const [mutateUpdateOrder] = useMutation(adminOrderUpdate, {
+    onCompleted: res => {
+      console.log({ res })
+      setMainError(null)
+      setSuccess('Order created successfully')
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+      setSelectedArea('')
+      setSelectedCity('')
+      setCost('')
+      setSelectedRestaurants(null)
+      setSelectedRiders(null)
+      setSelectedTime(times[1])
+      setLoaded(false)
+      refetchOrders()
+    },
+    onError: err => {
+      console.log({ err })
+      // setMainError(err.message)
+      // setSuccess(null)
+    }
+  })
 
   const handleSubmit = e => {
     e.preventDefault()
-    mutateCreateOrder({
-      variables: {
-        input: {
-          restaurant: selectedRestaurants?._id,
-          area: selectedArea,
-          time: selectedTime,
-          rider: selectedRiders?._id,
-          deliveryAmount: parseInt(deliveryAmount) || 0
+    if (!selectedCity) {
+      setMainError('Please select city')
+      return
+    }
+    if (!selectedArea) {
+      setMainError('Please select area')
+      return
+    }
+    if (!selectedRestaurants) {
+      setMainError('Please select business')
+      return
+    }
+    if (!order) {
+      mutateCreateOrder({
+        variables: {
+          input: {
+            restaurant: selectedRestaurants?._id,
+            area: selectedArea,
+            time: selectedTime,
+            rider: selectedRiders?._id,
+            deliveryAmount: parseInt(deliveryAmount) || 0,
+            cost: parseFloat(cost) || 0
+          }
         }
-      }
-    })
+      })
+    } else {
+      mutateUpdateOrder({
+        variables: {
+          id: order._id,
+          input: {
+            // restaurant: selectedRestaurants?._id,
+            area: selectedArea,
+            time: selectedTime,
+            rider: selectedRiders?._id,
+            deliveryAmount: parseInt(deliveryAmount) || 0,
+            cost: parseFloat(cost) || 0
+          }
+        }
+      })
+    }
   }
 
   return (
@@ -213,6 +305,24 @@ const DispatchForm = ({ order }) => {
             {!order ? t('Create Order') : t('Edit Order')}
           </Typography>
         </Box>
+      </Box>
+      <Box mt={2}>
+        {success && (
+          <Alert
+            className={globalClasses.alertSuccess}
+            variant="filled"
+            severity="success">
+            {success}
+          </Alert>
+        )}
+        {mainError && (
+          <Alert
+            className={globalClasses.alertError}
+            variant="filled"
+            severity="error">
+            {mainError}
+          </Alert>
+        )}
       </Box>
       <Box className={classes.form}>
         <form onSubmit={handleSubmit}>
@@ -252,7 +362,7 @@ const DispatchForm = ({ order }) => {
             <Select
               id="area"
               name="area"
-              defaultValue={selectedArea || ''}
+              defaultValue={order?.area || ''}
               value={selectedArea}
               onChange={e => setSelectedArea(e.target.value)}
               displayEmpty
@@ -381,7 +491,12 @@ const DispatchForm = ({ order }) => {
           <Box mb={2}>
             <Typography
               variant="body2"
-              sx={{ fontWeight: 'bold', mb: 2, color: '#000' }}>
+              sx={{
+                fontWeight: 'bold',
+                mb: 2,
+                color: '#000',
+                textAlign: 'left'
+              }}>
               {t('time_preparation')}
             </Typography>
             <FormControl fullWidth>
@@ -400,6 +515,33 @@ const DispatchForm = ({ order }) => {
                 })}
               </Select>
             </FormControl>
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 'bold', color: '#000', textAlign: 'left' }}>
+              {t('cost')}
+            </Typography>
+            <TextField
+              type="number"
+              variant="outlined"
+              fullWidth
+              margin="normal"
+              placeholder="e.g. 15"
+              value={cost}
+              onChange={e => setCost(e.target.value)}
+              error={!!cost && (isNaN(cost) || parseFloat(cost) <= 0)} // Error when cost is invalid
+              helperText={
+                cost && (isNaN(cost) || parseFloat(cost) <= 0)
+                  ? 'Please enter a valid cost greater than 0'
+                  : ''
+              }
+              sx={{
+                '& .MuiInputBase-input': { color: 'black' },
+                '& .MuiOutlinedInput-root': { borderRadius: 2 }
+              }}
+            />
           </Box>
 
           {calcLoading && (
@@ -422,24 +564,6 @@ const DispatchForm = ({ order }) => {
               type="submit">
               {t('Save')}
             </Button>
-          </Box>
-          <Box mt={2}>
-            {success && (
-              <Alert
-                className={globalClasses.alertSuccess}
-                variant="filled"
-                severity="success">
-                {success}
-              </Alert>
-            )}
-            {mainError && (
-              <Alert
-                className={globalClasses.alertError}
-                variant="filled"
-                severity="error">
-                {mainError}
-              </Alert>
-            )}
           </Box>
         </form>
       </Box>
